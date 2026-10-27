@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ExerciseNode, Scenario } from '../model/types';
 import type { TaskView } from '../sim/bridge';
 import { generateField } from '../map/terrain';
@@ -69,6 +70,17 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0x0a1322, W * 0.9, W * 2.2);
     const camera = new THREE.PerspectiveCamera(55, el.clientWidth / el.clientHeight, 1, W * 5);
+    // Start behind the unit at a low angle. The user can then orbit and zoom; the target stays on the unit.
+    const start = unitPos(unit, tasks.find((x) => x.id === unit.id), snapAt.current.now);
+    camera.position.set(start.x, W * 0.09, start.y + W * 0.12);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enablePan = false;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = W * 0.02;
+    controls.maxDistance = W * 0.5;
+    controls.maxPolarAngle = Math.PI * 0.48; // keep the camera above the ground
+    controls.target.set(start.x, 0, start.y);
 
     scene.add(new THREE.HemisphereLight(0xdfe9ff, 0x2a3a22, 1.1));
     const sun = new THREE.DirectionalLight(0xfff1d6, 1.4);
@@ -173,15 +185,9 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
         scene.add(routeLine);
       }
 
-      // Camera: low and behind the unit, looking at it, so the view follows the unit.
-      const back = t?.state === 'moving' && t.route && t.route.length > 1 ? 1 : 0;
-      const dirX = back ? t!.route![t!.route!.length - 1].x - p.x : 0;
-      const dirZ = back ? t!.route![t!.route!.length - 1].y - p.y : 1;
-      const len = Math.hypot(dirX, dirZ) || 1;
-      const ox = -(dirX / len) * W * 0.12;
-      const oz = -(dirZ / len) * W * 0.12;
-      camera.position.set(p.x + ox, y + W * 0.09, p.y + oz);
-      camera.lookAt(p.x, y + W * 0.01, p.y);
+      // Orbit controls: the target follows the unit; the user chooses the angle and distance.
+      controls.target.set(p.x, y + W * 0.01, p.y);
+      controls.update();
       renderer.render(scene, camera);
     };
     tick();
@@ -194,6 +200,7 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
     window.addEventListener('resize', onResize);
     return () => {
       cancelAnimationFrame(frame);
+      controls.dispose();
       window.removeEventListener('resize', onResize);
       renderer.dispose();
       geo.dispose();
