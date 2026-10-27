@@ -1,109 +1,109 @@
-// Unit symbols for the map. Simple fictional training symbology: a frame per unit
-// type with a glyph inside. Drawn in map units, so they scale with the map.
+// Map icons: a pictogram for each unit type on a round backdrop.
+// Pictograms are SVG paths on a 24-unit grid, drawn in map units so they scale with the map.
 import type { NodeKind } from '../model/types';
 
 export const FRIENDLY = '#2f7df6';
 const INK = '#f4f8ff';
 const MEDICAL_RED = '#c0392b';
 
-/** Draws the symbol centred on (cx, cy) in a square of `size` map units. */
+const PERSON_HEAD = 'M12 2.5a4 4 0 1 1 0 8a4 4 0 1 1 0-8z';
+const PERSON_BODY = 'M4 21.5c0-4.6 3.6-7.4 8-7.4s8 2.8 8 7.4z';
+const TRUCK_CARGO = 'M1.5 6h13v10.5h-13z';
+const TRUCK_CAB = 'M15.5 9.5h4.2l3.3 3.6v3.4h-7.5z';
+const WHEEL_L = 'M7 16.2a2.6 2.6 0 1 1 0 .01z';
+const WHEEL_R = 'M18 16.2a2.6 2.6 0 1 1 0 .01z';
+const CRATE_TOP = 'M12 2.5l9 4.5-9 4.5-9-4.5z';
+const CRATE_SIDES = 'M3 7v9.5l9 4.5 9-4.5V7l-9 4.5z';
+const CRATE_EDGE = 'M12 12v9.5';
+const CROSS = 'M9.5 4.5h5v5h5v5h-5v5h-5v-5h-5v-5h5z';
+const RADIO_BODY = 'M5.5 10h13v10.5h-13z';
+const RADIO_ANTENNA = 'M9 10L18 2.5';
+const RADIO_GRILL = 'M8 14.5h8M8 17h8';
+
+/** Draws a path given in 24-unit icon space, centred at (dx, dy) with scale `sc`. */
+function icon(ctx: CanvasRenderingContext2D, d: string, dx: number, dy: number, sc: number, fill: boolean) {
+  ctx.save();
+  ctx.translate(dx, dy);
+  ctx.scale(sc, sc);
+  ctx.translate(-12, -12);
+  const p = new Path2D(d);
+  if (fill) ctx.fill(p);
+  else ctx.stroke(p);
+  ctx.restore();
+}
+
+function person(ctx: CanvasRenderingContext2D, dx: number, dy: number, sc: number, color: string) {
+  ctx.fillStyle = color;
+  icon(ctx, PERSON_HEAD, dx, dy, sc, true);
+  icon(ctx, PERSON_BODY, dx, dy, sc, true);
+}
+
+/** Draws the icon centred on (cx, cy) in a square of `size` map units. */
 export function drawUnitSymbol(ctx: CanvasRenderingContext2D, kind: NodeKind, cx: number, cy: number, size: number) {
-  const half = size / 2;
-  const x0 = cx - half;
-  const y0 = cy - half;
-  const s = size * 0.42; // glyph half-extent
-  const stroke = size * 0.07;
+  const r = size * 0.46;
+  const k = (size * 0.62) / 24; // icon scale: 24 icon units -> map units
+  const medical = kind === 'medical';
 
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  // Frame
-  const medical = kind === 'medical';
+  // Backdrop with soft shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = size * 0.12;
+  ctx.shadowOffsetY = size * 0.05;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = medical ? '#f4f6fa' : FRIENDLY;
-  ctx.fillRect(x0, y0, size, size);
-  ctx.strokeStyle = 'rgba(8,16,30,0.7)';
-  ctx.lineWidth = size * 0.04;
-  ctx.strokeRect(x0, y0, size, size);
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = size * 0.03;
-  ctx.strokeRect(x0 + size * 0.06, y0 + size * 0.06, size * 0.88, size * 0.88);
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = size * 0.035;
+  ctx.strokeStyle = 'rgba(8,16,30,0.75)';
+  ctx.stroke();
 
-  ctx.strokeStyle = INK;
   ctx.fillStyle = INK;
-  ctx.lineWidth = stroke;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.6 * k * 0.5;
 
   switch (kind) {
-    case 'team': {
-      // Crossed bars: a combat-team style mark
-      ctx.beginPath();
-      ctx.moveTo(cx - s, cy - s);
-      ctx.lineTo(cx + s, cy + s);
-      ctx.moveTo(cx + s, cy - s);
-      ctx.lineTo(cx - s, cy + s);
-      ctx.stroke();
+    case 'personnel':
+      person(ctx, cx, cy, k * 1.05, INK);
       break;
-    }
-    case 'personnel': {
-      // Single figure: head and shoulders
-      ctx.beginPath();
-      ctx.arc(cx, cy - s * 0.35, s * 0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(cx, cy + s * 0.75, s * 0.55, Math.PI * 1.15, Math.PI * 1.85);
-      ctx.stroke();
+    case 'team':
+      person(ctx, cx - 5 * k, cy + 1.2 * k, k * 0.72, INK);
+      person(ctx, cx + 5 * k, cy + 1.2 * k, k * 0.72, INK);
+      person(ctx, cx, cy - 0.6 * k, k * 0.95, INK);
       break;
-    }
-    case 'transport': {
-      // Vehicle: cab and cargo with two wheels
-      ctx.beginPath();
-      ctx.rect(cx - s, cy - s * 0.5, s * 1.25, s * 0.85);
-      ctx.moveTo(cx + s * 0.25, cy - s * 0.5);
-      ctx.lineTo(cx + s * 0.25, cy + s * 0.35);
-      ctx.lineTo(cx + s, cy + s * 0.35);
-      ctx.lineTo(cx + s, cy - s * 0.05);
-      ctx.lineTo(cx + s * 0.7, cy - s * 0.5);
-      ctx.closePath();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(cx - s * 0.5, cy + s * 0.55, s * 0.22, 0, Math.PI * 2);
-      ctx.arc(cx + s * 0.6, cy + s * 0.55, s * 0.22, 0, Math.PI * 2);
-      ctx.fill();
+    case 'transport':
+      icon(ctx, TRUCK_CARGO, cx, cy, k, true);
+      icon(ctx, TRUCK_CAB, cx, cy, k, true);
+      ctx.fillStyle = FRIENDLY;
+      icon(ctx, WHEEL_L, cx, cy, k * 1.1, true);
+      icon(ctx, WHEEL_R, cx, cy, k * 1.1, true);
+      ctx.fillStyle = INK;
+      icon(ctx, WHEEL_L, cx, cy, k * 0.6, true);
+      icon(ctx, WHEEL_R, cx, cy, k * 0.6, true);
       break;
-    }
-    case 'supply': {
-      // Stores: a box with a lid line
-      ctx.beginPath();
-      ctx.rect(cx - s * 0.8, cy - s * 0.6, s * 1.6, s * 1.2);
-      ctx.moveTo(cx - s * 0.8, cy - s * 0.1);
-      ctx.lineTo(cx + s * 0.8, cy - s * 0.1);
-      ctx.stroke();
+    case 'supply':
+      icon(ctx, CRATE_TOP, cx, cy, k, true);
+      icon(ctx, CRATE_SIDES, cx, cy, k, true);
+      ctx.strokeStyle = FRIENDLY;
+      ctx.lineWidth = 1.4 * k;
+      icon(ctx, CRATE_EDGE, cx, cy, k, false);
       break;
-    }
-    case 'medical': {
-      // Red cross on a white field
+    case 'medical':
       ctx.fillStyle = MEDICAL_RED;
-      const arm = s * 0.45;
-      ctx.fillRect(cx - arm / 2, cy - s, arm, s * 2);
-      ctx.fillRect(cx - s, cy - arm / 2, s * 2, arm);
+      icon(ctx, CROSS, cx, cy, k, true);
       break;
-    }
-    case 'communications': {
-      // Radio: mast with two sets of waves
-      ctx.beginPath();
-      ctx.arc(cx, cy + s * 0.2, s * 0.22, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(cx, cy + s * 0.2, s * 0.6, Math.PI * 1.25, Math.PI * 1.75);
-      ctx.arc(cx, cy + s * 0.2, s * 0.6, Math.PI * 0.25, Math.PI * 0.75, true);
-      ctx.moveTo(cx, cy + s * 0.2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(cx, cy + s * 0.2, s * 0.95, Math.PI * 1.3, Math.PI * 1.7);
-      ctx.arc(cx, cy + s * 0.2, s * 0.95, Math.PI * 0.3, Math.PI * 0.7, true);
-      ctx.stroke();
+    case 'communications':
+      icon(ctx, RADIO_BODY, cx, cy, k, true);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.5 * k;
+      icon(ctx, RADIO_ANTENNA, cx, cy, k, false);
+      ctx.strokeStyle = FRIENDLY;
+      ctx.lineWidth = 1.2 * k;
+      icon(ctx, RADIO_GRILL, cx, cy, k, false);
       break;
-    }
   }
   ctx.restore();
 }
