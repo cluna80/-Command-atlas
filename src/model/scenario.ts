@@ -95,6 +95,9 @@ export function nodeErrors(node: ExerciseNode): Record<string, string> {
   }
   if (!a.objective?.trim()) errors.objective = 'Objective is required.';
   if (!TIME_RE.test(a.start ?? '')) errors.start = 'Start must be a 24-hour time such as 09:00.';
+  if (a.status !== undefined && !['Ready', 'Standby', 'Blocked'].includes(a.status)) {
+    errors.status = 'Status must be Ready, Standby, or Blocked.';
+  }
   return errors;
 }
 

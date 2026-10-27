@@ -12,10 +12,13 @@ export const NODE_KINDS = [
 
 export type NodeKind = (typeof NODE_KINDS)[number];
 
+export type Status = 'Ready' | 'Standby' | 'Blocked';
+
 export interface Assignment {
   objective: string;
   role: string;
   start: string; // 24-hour HH:MM, exercise clock
+  status?: Status; // defaults to Ready when absent
   prerequisites: string;
   resourceRequirements: string;
   completionCriteria: string;

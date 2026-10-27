@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MapCanvas, type View } from './components/MapCanvas';
 import { Inspector } from './components/Inspector';
+import { TopBar } from './components/TopBar';
+import { AssetLibrary } from './components/AssetLibrary';
+import { BottomBar } from './components/BottomBar';
 import {
   NODE_SIZE,
   createNode,
@@ -10,7 +13,17 @@ import {
   serializeScenario,
   validateScenario,
 } from './model/scenario';
-import { NODE_KINDS, type Assignment, type Dependency, type ExerciseNode, type NodeKind, type Scenario, type ValidationIssue } from './model/types';
+import type { Dependency, ExerciseNode, NodeKind, Scenario, ValidationIssue } from './model/types';
+
+const MAP_WIDTH = 1400;
+const GENERATED_HEIGHT = 1000;
+
+const clampNodes = (nodes: ExerciseNode[], width: number, height: number) =>
+  nodes.map((n) => ({
+    ...n,
+    x: Math.min(width - NODE_SIZE / 2, Math.max(NODE_SIZE / 2, n.x)),
+    y: Math.min(height - NODE_SIZE / 2, Math.max(NODE_SIZE / 2, n.y)),
+  }));
 
 export default function App() {
   const [scenario, setScenario] = useState<Scenario>(() => createSampleScenario());
@@ -20,69 +33,14 @@ export default function App() {
   const [notice, setNotice] = useState<{ title: string; issues: ValidationIssue[] } | null>(null);
 
   const issues = useMemo(() => validateScenario(scenario), [scenario]);
-  const MAP_WIDTH = 1400;
-  const clampNodes = (nodes: ExerciseNode[], width: number, height: number) =>
-    nodes.map((n) => ({
-      ...n,
-      x: Math.min(width - NODE_SIZE / 2, Math.max(NODE_SIZE / 2, n.x)),
-      y: Math.min(height - NODE_SIZE / 2, Math.max(NODE_SIZE / 2, n.y)),
-    }));
-
-  const loadBaseMap = async (file: File) => {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 2800 / bitmap.width);
-    const c = document.createElement('canvas');
-    c.width = Math.round(bitmap.width * scale);
-    c.height = Math.round(bitmap.height * scale);
-    c.getContext('2d')!.drawImage(bitmap, 0, 0, c.width, c.height);
-    bitmap.close();
-    const dataUrl = c.toDataURL('image/jpeg', 0.9);
-    const width = MAP_WIDTH;
-    const height = Math.round((MAP_WIDTH * c.height) / c.width);
-    setScenario((s) => ({
-      ...s,
-      map: { width, height },
-      terrain: { seed: s.terrain?.seed ?? 1, image: dataUrl },
-      nodes: clampNodes(s.nodes, width, height),
-    }));
-    setFitToken((t) => t + 1);
-  };
-
-  const onMapFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      await loadBaseMap(file);
-    } catch {
-      setNotice({
-        title: `Could not use ${file.name}`,
-        issues: [{ where: 'file', message: 'Choose a JPG, PNG, or other image file.' }],
-      });
-    }
-  };
-
-  const useGeneratedTerrain = () => {
-    const width = MAP_WIDTH;
-    const height = 1000;
-    setScenario((s) => ({
-      ...s,
-      map: { width, height },
-      terrain: { seed: s.terrain?.seed ?? 1 },
-      nodes: clampNodes(s.nodes, width, height),
-    }));
-    setFitToken((t) => t + 1);
-  };
   const selected = scenario.nodes.find((n) => n.id === selectedId) ?? null;
+  const resetView = () => setFitToken((t) => t + 1);
 
   const updateNode = (id: string, patch: Partial<ExerciseNode>) =>
     setScenario((s) => ({ ...s, nodes: s.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) }));
 
-  const updateAssignment = (id: string, patch: Partial<Assignment>) =>
-    setScenario((s) => ({
-      ...s,
-      nodes: s.nodes.map((n) => (n.id === id ? { ...n, assignment: { ...n.assignment, ...patch } } : n)),
-    }));
+  const applyNode = (node: ExerciseNode) =>
+    setScenario((s) => ({ ...s, nodes: s.nodes.map((n) => (n.id === node.id ? node : n)) }));
 
   const addNode = (kind: NodeKind) => {
     const node = createNode(kind, scenario.map.width / 2, scenario.map.height / 2, scenario.nodes);
@@ -142,10 +100,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
+  const loadScenario = async (file: File) => {
     const { scenario: loaded, issues: found } = parseScenario(await file.text());
     if (loaded) {
       setScenario(loaded);
@@ -157,11 +112,49 @@ export default function App() {
     }
   };
 
-  // Keyboard: Delete removes the selected node, Ctrl/Cmd+D duplicates it.
+  const loadBaseMap = async (file: File) => {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2800 / bitmap.width);
+    const c = document.createElement('canvas');
+    c.width = Math.round(bitmap.width * scale);
+    c.height = Math.round(bitmap.height * scale);
+    c.getContext('2d')!.drawImage(bitmap, 0, 0, c.width, c.height);
+    bitmap.close();
+    const dataUrl = c.toDataURL('image/jpeg', 0.9);
+    const height = Math.round((MAP_WIDTH * c.height) / c.width);
+    setScenario((s) => ({
+      ...s,
+      map: { width: MAP_WIDTH, height },
+      terrain: { seed: s.terrain?.seed ?? 1, image: dataUrl },
+      nodes: clampNodes(s.nodes, MAP_WIDTH, height),
+    }));
+    setFitToken((t) => t + 1);
+  };
+
+  const useGeneratedTerrain = () => {
+    setScenario((s) => ({
+      ...s,
+      map: { width: MAP_WIDTH, height: GENERATED_HEIGHT },
+      terrain: { seed: s.terrain?.seed ?? 1 },
+      nodes: clampNodes(s.nodes, MAP_WIDTH, GENERATED_HEIGHT),
+    }));
+    setFitToken((t) => t + 1);
+  };
+
+  const uploadMapFile = async (file: File) => {
+    try {
+      await loadBaseMap(file);
+    } catch {
+      setNotice({ title: `Could not use ${file.name}`, issues: [{ where: 'file', message: 'Choose a JPG, PNG, or other image file.' }] });
+    }
+  };
+
+  // Keyboard: Delete removes the selected node, Ctrl/Cmd+D duplicates it, Escape clears selection.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'Escape') setSelectedId(null);
       if (!selectedId) return;
       if (e.key === 'Delete' || e.key === 'Backspace') deleteNode(selectedId);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
@@ -175,47 +168,19 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="brand">COMMAND ATLAS</div>
-        <input
-          className="scenarioName"
-          value={scenario.name}
-          onChange={(e) => setScenario((s) => ({ ...s, name: e.target.value }))}
-          aria-label="Scenario name"
-        />
-        <span className={`status ${issues.length ? 'bad' : 'ok'}`}>
-          {issues.length ? `${issues.length} issue${issues.length > 1 ? 's' : ''}` : 'Valid'}
-        </span>
-        <span className="spacer" />
-        <label className="btn">
-          Load
-          <input type="file" accept="application/json,.json" onChange={onFile} hidden />
-        </label>
-        <button className="btn primary" onClick={save}>Save</button>
-        <span className="training">TRAINING ONLY</span>
-      </header>
+      <TopBar
+        scenario={scenario}
+        issueCount={issues.length}
+        hasImage={!!scenario.terrain?.image}
+        onRename={(name) => setScenario((s) => ({ ...s, name }))}
+        onSave={save}
+        onLoad={loadScenario}
+        onUploadMap={uploadMapFile}
+        onUseGenerated={useGeneratedTerrain}
+        onResetView={resetView}
+      />
 
-      <aside className="palette">
-        <div className="panelTitle">Add to map</div>
-        {NODE_KINDS.map((k) => (
-          <button key={k} className="paletteItem" onClick={() => addNode(k)}>
-            + {k}
-          </button>
-        ))}
-        <div className="panelTitle" style={{ marginTop: 16 }}>Base map</div>
-        <label className="paletteItem">
-          Upload map image
-          <input type="file" accept="image/*" hidden onChange={onMapFile} />
-        </label>
-        {scenario.terrain?.image && (
-          <button className="paletteItem" onClick={useGeneratedTerrain}>Use generated terrain</button>
-        )}
-        <div className="hint">
-          {scenario.terrain?.image ? 'Using your uploaded map.' : 'Using generated terrain.'}
-        </div>
-        <div className="panelTitle" style={{ marginTop: 16 }}>View</div>
-        <button className="paletteItem" onClick={() => setFitToken((t) => t + 1)}>Reset view</button>
-      </aside>
+      <AssetLibrary onAdd={addNode} />
 
       <main className="mapPane">
         <MapCanvas
@@ -232,9 +197,7 @@ export default function App() {
             <strong>{notice.title}</strong>
             <ul>
               {notice.issues.map((i, idx) => (
-                <li key={idx}>
-                  <span className="where">{i.where}:</span> {i.message}
-                </li>
+                <li key={idx}><span className="where">{i.where}:</span> {i.message}</li>
               ))}
             </ul>
             <button className="linkBtn" onClick={() => setNotice(null)}>Dismiss</button>
@@ -245,10 +208,10 @@ export default function App() {
       <aside className="inspectorPane">
         {selected ? (
           <Inspector
+            key={selected.id}
             node={selected}
             scenario={scenario}
-            onNode={(patch) => updateNode(selected.id, patch)}
-            onAssignment={(patch) => updateAssignment(selected.id, patch)}
+            onApply={applyNode}
             onDelete={() => deleteNode(selected.id)}
             onDuplicate={() => duplicateNode(selected.id)}
             onAddDependency={(fromId) => addDependency(fromId, selected.id)}
@@ -258,6 +221,8 @@ export default function App() {
           <div className="empty">Select a node on the map to edit its assignment.</div>
         )}
       </aside>
+
+      <BottomBar />
     </div>
   );
 }
