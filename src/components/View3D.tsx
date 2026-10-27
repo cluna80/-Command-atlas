@@ -109,10 +109,26 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
       return f.elev[gz * GRID + gx] * W * VERT_SCALE;
     }
 
-    // Unit marker: a pillar with a cap, coloured by status.
-    const markerGeo = new THREE.CylinderGeometry(W * 0.006, W * 0.006, W * 0.03, 12);
-    const marker = new THREE.Mesh(markerGeo, new THREE.MeshStandardMaterial({ color: 0x2f7df6, emissive: 0x0b2a66 }));
-    scene.add(marker);
+    // Unit beacon: a bright core, a breathing halo, and a ring that pulses out along the ground.
+    const beacon = new THREE.Group();
+    const core = new THREE.Mesh(
+      new THREE.CylinderGeometry(W * 0.005, W * 0.005, W * 0.03, 16),
+      new THREE.MeshStandardMaterial({ color: 0x2f7df6, emissive: 0x1d4fb8, emissiveIntensity: 1.2 }),
+    );
+    core.position.y = W * 0.015;
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(W * 0.009, 24, 16),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25, depthWrite: false }),
+    );
+    halo.position.y = W * 0.03;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(W * 0.012, W * 0.016, 40),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    beacon.add(core, halo, ring);
+    scene.add(beacon);
+    const marker = beacon; // position and colour are driven below
 
     // Route line for a moving unit.
     const routeMat = new THREE.LineDashedMaterial({ color: 0x7dd3fc, dashSize: W * 0.01, gapSize: W * 0.006 });
@@ -128,7 +144,21 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
       const p = unitPos(u, t, now);
       const y = groundY(p.x, p.y);
       marker.position.set(p.x, y + W * 0.015, p.y);
-      marker.material.color.set(t?.state === 'complete' ? 0x22c55e : t?.state === 'active' ? 0x38bdf8 : 0x2f7df6);
+      const colour = t?.state === 'complete' ? 0x22c55e : t?.state === 'active' ? 0x38bdf8 : 0x2f7df6;
+      (core.material as THREE.MeshStandardMaterial).color.set(colour);
+      (core.material as THREE.MeshStandardMaterial).emissive.set(colour).multiplyScalar(0.35);
+      (halo.material as THREE.MeshBasicMaterial).color.set(colour);
+      (ring.material as THREE.MeshBasicMaterial).color.set(colour);
+
+      // Breathing: a slow swell and fade, faster while the unit is moving or working.
+      const period = t?.state === 'moving' || t?.state === 'active' ? 1.6 : 2.6;
+      const phase = (Math.sin((performance.now() / 1000) * (2 * Math.PI / period)) + 1) / 2;
+      halo.scale.setScalar(0.85 + 0.45 * phase);
+      (halo.material as THREE.MeshBasicMaterial).opacity = 0.05 + 0.18 * phase;
+      const ringPhase = (performance.now() / 1000 / period) % 1;
+      ring.scale.setScalar(1 + ringPhase * 3);
+      (ring.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - ringPhase);
+      ring.position.y = -W * 0.015 + 0.5;
 
       if (routeLine) {
         scene.remove(routeLine);
@@ -166,7 +196,6 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
       window.removeEventListener('resize', onResize);
       renderer.dispose();
       geo.dispose();
-      markerGeo.dispose();
       el.removeChild(renderer.domElement);
     };
   }, [scenario, heights, W, H, hasElevation]);
