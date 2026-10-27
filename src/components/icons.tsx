@@ -31,3 +31,28 @@ export const LocateIcon = () => (
 export const ChevronIcon = ({ open }: { open: boolean }) => (
   <svg {...base} width={12} height={12} style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }}><path d="M6 9l6 6 6-6" /></svg>
 );
+
+// Section icons for the asset library.
+const sec = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+
+export const PersonnelIcon = () => (
+  <svg {...sec}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
+);
+export const TeamIcon = () => (
+  <svg {...sec}><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-5.2 6-5.2s6 1.9 6 5.2" /><circle cx="17" cy="9" r="2.5" /><path d="M16.5 14.2c2.6 0 4.5 1.6 4.5 4.3" /></svg>
+);
+export const TransportIcon = () => (
+  <svg {...sec}><path d="M2 7h12v9H2z" /><path d="M14 10h4l3 3.5V16h-7" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="17.5" cy="17.5" r="1.8" /></svg>
+);
+export const SupplyIcon = () => (
+  <svg {...sec}><path d="M3 7.5L12 3l9 4.5v9L12 21l-9-4.5z" /><path d="M3 7.5l9 4.5 9-4.5M12 12v9" /></svg>
+);
+export const MedicalIcon = () => (
+  <svg {...sec}><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" /></svg>
+);
+export const CommsIcon = () => (
+  <svg {...sec}><circle cx="12" cy="12" r="2" /><path d="M8.5 8.5a5 5 0 000 7M15.5 8.5a5 5 0 010 7M5.6 5.6a9.5 9.5 0 000 12.8M18.4 5.6a9.5 9.5 0 010 12.8" /></svg>
+);
+export const EventIcon = () => (
+  <svg {...sec}><path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" /></svg>
+);

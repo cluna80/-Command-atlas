@@ -1,6 +1,16 @@
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import type { NodeKind } from '../model/types';
-import { ChevronIcon, SearchIcon } from './icons';
+import {
+  ChevronIcon,
+  CommsIcon,
+  EventIcon,
+  MedicalIcon,
+  PersonnelIcon,
+  SearchIcon,
+  SupplyIcon,
+  TeamIcon,
+  TransportIcon,
+} from './icons';
 
 interface Entry {
   label: string;
@@ -9,17 +19,18 @@ interface Entry {
 interface Group {
   title: string;
   color: string;
+  icon: () => ReactElement;
   open: boolean;
   items: Entry[];
 }
 
 const GROUPS: Group[] = [
   {
-    title: 'Personnel', color: '#60a5fa', open: true,
+    title: 'Personnel', color: '#60a5fa', icon: PersonnelIcon, open: true,
     items: [{ label: 'Individual (Generic)', kind: 'personnel' }, { label: 'Team (Generic)', kind: 'team' }],
   },
   {
-    title: 'Teams', color: '#2f7df6', open: true,
+    title: 'Teams', color: '#2f7df6', icon: TeamIcon, open: true,
     items: [
       { label: 'Infantry Team', kind: 'team' },
       { label: 'Support Team', kind: 'team' },
@@ -27,18 +38,18 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: 'Transport', color: '#94a3b8', open: true,
+    title: 'Transport', color: '#94a3b8', icon: TransportIcon, open: true,
     items: [
       { label: 'Truck (Logistics)', kind: 'transport' },
       { label: 'Utility Vehicle', kind: 'transport' },
       { label: 'Helicopter (Transport)', kind: 'transport' },
     ],
   },
-  { title: 'Supply', color: '#1f3c66', open: false, items: [{ label: 'Supply point', kind: 'supply' }] },
-  { title: 'Medical', color: '#f4f6fa', open: false, items: [{ label: 'Medical facility', kind: 'medical' }] },
-  { title: 'Communications', color: '#a78bfa', open: false, items: [{ label: 'Radio relay', kind: 'communications' }] },
+  { title: 'Supply', color: '#7aa2d6', icon: SupplyIcon, open: false, items: [{ label: 'Supply point', kind: 'supply' }] },
+  { title: 'Medical', color: '#f4f6fa', icon: MedicalIcon, open: false, items: [{ label: 'Medical facility', kind: 'medical' }] },
+  { title: 'Communications', color: '#a78bfa', icon: CommsIcon, open: false, items: [{ label: 'Radio relay', kind: 'communications' }] },
   {
-    title: 'Events', color: '#f5b400', open: false,
+    title: 'Events', color: '#f5b400', icon: EventIcon, open: false,
     items: [{ label: 'Communications outage' }, { label: 'Instructor review' }],
   },
 ];
@@ -71,7 +82,7 @@ export function AssetLibrary({ onAdd }: { onAdd: (kind: NodeKind) => void }) {
               className="groupHead"
               onClick={() => setGroups((gs) => gs.map((x, i) => (i === gi ? { ...x, open: !x.open } : x)))}
             >
-              <span className="glyph" style={{ background: g.color }} />
+              <span className="secIcon" style={{ color: g.color }}>{g.icon()}</span>
               {g.title}
               <span className="chev"><ChevronIcon open={g.open || !!q} /></span>
             </button>
