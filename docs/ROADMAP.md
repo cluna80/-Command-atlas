@@ -11,10 +11,6 @@ A desktop platform for contractor training teams serving commanders and planning
 
 This product supports training and exercise management. It does not support live operational deployment, combat planning or execution, weapons, targeting, or automated tactical recommendations. Abstract encounter outcomes are exercise inputs or instructor-adjudicated events, not predictions of combat effectiveness.
 
-Explicitly excluded, with no exceptions:
-- Tactics, weapons employment, targeting, attack or assault planning
-- Anything that could be used to plan or carry out a real attack
-
 <!--
 Removed at owner request, October 27, 2026. Not planned, and no requirements, design, or implementation work is tracked here:
 - Weapons systems and drone strike capability
