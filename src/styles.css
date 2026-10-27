@@ -272,3 +272,5 @@ button:disabled { cursor: default; opacity: 0.45; }
 .view3dTitle { font-weight: 700; }
 .view3dState { color: var(--cyan); font-size: 12px; }
 .view3dNote { color: var(--muted); font-size: 11px; font-style: italic; margin-left: auto; }
+
+.destLabel { position: absolute; transform: translate(-50%, -100%); background: rgba(10,19,34,0.9); border: 1px solid #f5b400; color: #fde68a; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 5px; pointer-events: none; white-space: nowrap; }

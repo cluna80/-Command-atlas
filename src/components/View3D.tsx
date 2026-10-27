@@ -38,6 +38,7 @@ function unitPos(n: { x: number; y: number }, t: TaskView | undefined, now: numb
 
 export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const destLabelRef = useRef<HTMLDivElement>(null);
   // Snapshots arrive about once a second. Between them, the clock is extrapolated from the
   // wall clock so motion is smooth while running.
   const snapAt = useRef({ at: performance.now(), now: nowS });
@@ -142,6 +143,23 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
     scene.add(beacon);
     const marker = beacon; // position and colour are driven below
 
+    // Destination marker: an amber pillar and ring at the end of the route, labelled with the node name.
+    const destGroup = new THREE.Group();
+    const destPillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(W * 0.003, W * 0.003, W * 0.05, 12),
+      new THREE.MeshStandardMaterial({ color: 0xf5b400, emissive: 0x7a5a00, emissiveIntensity: 0.8 }),
+    );
+    destPillar.position.y = W * 0.025;
+    const destRing = new THREE.Mesh(
+      new THREE.RingGeometry(W * 0.012, W * 0.015, 40),
+      new THREE.MeshBasicMaterial({ color: 0xf5b400, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false }),
+    );
+    destRing.rotation.x = -Math.PI / 2;
+    destRing.position.y = 1;
+    destGroup.add(destPillar, destRing);
+    destGroup.visible = false;
+    scene.add(destGroup);
+
     // Route line for a moving unit.
     const routeMat = new THREE.LineDashedMaterial({ color: 0x7dd3fc, dashSize: W * 0.01, gapSize: W * 0.006 });
     let routeLine: THREE.Line | null = null;
@@ -179,10 +197,32 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
         routeLine = null;
       }
       if (t?.state === 'moving' && t.route && t.route.length > 1) {
-        const pts = t.route.map((q) => new THREE.Vector3(q.x, groundY(q.x, q.y) + 3, q.y));
+        const pts = t.route.map((q) => new THREE.Vector3(q.x, groundY(q.x, q.y) + W * 0.004, q.y));
         routeLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), routeMat);
         routeLine.computeLineDistances();
         scene.add(routeLine);
+      }
+
+      // Destination marker and label while moving.
+      const label = destLabelRef.current;
+      const dst = t?.state === 'moving' && t.route && t.route.length > 1 ? t.route[t.route.length - 1] : null;
+      if (dst) {
+        const dy = groundY(dst.x, dst.y);
+        destGroup.visible = true;
+        destGroup.position.set(dst.x, dy, dst.y);
+        destRing.scale.setScalar(1 + 0.25 * Math.sin(performance.now() / 300));
+        const node = live.current.scenario.nodes.find((n) => n.id === u.assignment.destinationId);
+        const v = new THREE.Vector3(dst.x, dy + W * 0.06, dst.y).project(camera);
+        if (label) {
+          const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+          label.style.display = visible ? 'block' : 'none';
+          label.style.left = `${((v.x + 1) / 2) * el.clientWidth}px`;
+          label.style.top = `${((1 - v.y) / 2) * el.clientHeight}px`;
+          label.textContent = `Destination: ${node?.name ?? 'unknown'}`;
+        }
+      } else {
+        destGroup.visible = false;
+        if (label) label.style.display = 'none';
       }
 
       // Orbit controls: the target follows the unit; the user chooses the angle and distance.
@@ -212,6 +252,7 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
   return (
     <div className="view3d">
       <div ref={mountRef} className="view3dCanvas" />
+      <div ref={destLabelRef} className="destLabel" style={{ display: 'none' }} />
       <div className="view3dBar">
         <span className="view3dTitle">3D view · {unit.name}</span>
         <span className="view3dState">{t ? t.state : 'not started'}</span>
