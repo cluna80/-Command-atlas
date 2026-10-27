@@ -1,47 +1,73 @@
-COMMAND ATLAS
-Product roadmap — baseline v0.1
-Recorded: October 26, 2026. Working name; trademark and domain availability have not been checked. Status: planning baseline, no implementation or model validation claimed.
-Product purpose
-A browser-based, top-down 2D exercise simulation platform for contractor training teams serving commanders and planning staff. Users place personnel and resources, configure structured training assignments, run exercises, introduce changes, and review outcomes.
-Locked product direction
-- Top-down 2D map with drag-and-drop personnel, teams, vehicles, facilities, and exercise events.
-- Individual and team placement, grouping, reusable templates, and node inspection.
-- Per-node assignment cards: exercise objective, role, schedule, prerequisites, resource requirements, completion criteria, and fallback behavior.
-- Run, pause, single-step, adjustable simulation speed, restart, and replay.
-- Instructor interventions during a run with a timestamped audit trail.
-- Fictional combat context and abstract opposing-force encounters, resolved by documented exercise rules or instructor adjudication.
-- Calculations for readiness, movement assumptions, scheduling, logistics, communications availability, medical capacity, and task dependencies.
-- Visible assumptions, model limitations, uncertainty, and after-action review.
-Scope boundary
-This baseline supports training and exercise management. It excludes live operational deployment, generating or optimizing combat execution plans, targeting, weapons employment, attack maneuvers, and automated tactical recommendations. Abstract encounter outcomes are exercise inputs or adjudicated events, not validated predictions of combat effectiveness. Universal battlefield coverage is a long-term aspiration, not a product claim.
-Interface baseline
-Top bar: scenario name, exercise status, save, and session controls.
-Left palette: teams, personnel, transport, supply, medical, communications, and events.
-Center: fictional map with terrain, facilities, selectable nodes, and neutral task connections.
-Right inspector: selected node, assignment, dependencies, readiness, and resource fields.
-Bottom: Run/Pause/Step controls, speed, event timeline, and replay position.
-Review view: task completion, delays, shortages, instructor decisions, and comparison of runs.
-Phased delivery
-Phase	Deliverables	Exit criteria
-0 — Definition	User workflows, fictional scenario, node schema, model assumptions, clickable design	Trainer can review a complete create–configure–run–review workflow; scope and measures documented
-1 — Scenario builder	Pan/zoom map; drag, select, edit, group, duplicate, delete; assignment inspector; save/load	A saved scenario reloads with positions, groups, assignments, and dependencies intact; invalid fields produce clear errors
-2 — Simulation core	Simulation clock; event queue; task states; dependencies; Run/Pause/Step/speed; basic resource accounting	Same version, scenario, event sequence, and random seed reproduce the same event log; pause prevents simulation-time advancement
-3 — Instructor controls	Timestamped disruptions; communications outages; equipment unavailability; weather changes; abstract encounter adjudication	Events change the intended exercise state and appear in replay; trainer can distinguish manual decisions from model outputs
-4 — Calculation and validation	Resource consumption, queues, readiness assumptions, dependency delays, repeated runs with varied inputs	Hand-checkable reference cases pass; impossible states are flagged; uncertainty and model versions accompany results
-5 — Review and comparison	Timeline playback, task metrics, side-by-side run summaries, exportable review	Reviewer can trace each reported outcome to events, configuration, and instructor decisions
-6 — Team pilot	Trainer/participant/observer roles; access controls; session isolation; shared exercises; audit history	Two isolated sessions retain separate state; role permissions are verified; trainers complete a supervised fictional exercise
-7 — Product hardening	Performance benchmarks, accessibility, backup/restore, deployment documentation, customer pilot feedback	Agreed pilot workload passes documented checks; restore demonstrated; remaining limitations recorded
+# Command Atlas: Product Roadmap
 
+Version 2.0 (rewritten October 27, 2026). Supersedes baseline v0.1.
+Fictional training and exercise management only.
 
-First playable exercise
-Fictional multi-site evacuation and sustainment exercise with personnel teams, transport, a supply facility, a medical facility, and instructor-adjudicated encounters. The instructor introduces a road closure, communications outage, or vehicle failure. Review emphasizes coordination, resource availability, dependency delays, and training objectives.
-Calculation principles
-Use a discrete-event core initially. Store scenario version, model version, input assumptions, random seed, and intervention history with every run. Distinguish entered values, calculated outputs, and instructor judgments. Introduce repeated stochastic runs only after deterministic reference cases pass. Display ranges and sensitivity where inputs are uncertain; do not invent confidence percentages or imply operational predictive validity.
-Proposed implementation direction
-React and TypeScript interface with a 2D canvas map; simulation core separate from rendering; versioned JSON scenarios; local save/load for the first prototype. Select backend, persistent database, collaboration transport, and hosting after the prototype workflow is accepted. No blockchain dependency is required for the first version.
-Data model baseline
-Scenario, Map, Node, Team, Assignment, Dependency, ResourceInventory, ExerciseEvent, Adjudication, SimulationRun, ModelVersion, and ReviewMetric. Assignments record training tasks rather than executable combat instructions.
-Delivery discipline
-Phases are ordered by dependency, not promised calendar dates. Set schedule and scale targets after team size, budget, hosting constraints, and pilot workload are known. Changes to this baseline should be recorded with rationale and version. The concept image is illustrative, not a screenshot of working software.
-Immediate next milestone
-Build Phase 1: a fictional map, draggable personnel/team nodes, editable assignment cards, and scenario save/load. Then implement the reproducible simulation clock in Phase 2.
+## Product purpose
+
+A desktop platform for contractor training teams serving commanders and planning staff. Users place personnel and resources on a fictional map, configure training assignments, run exercises in real time, introduce changes, and review outcomes.
+
+## Scope boundary
+
+This product supports training and exercise management. It does not support live operational deployment, combat planning or execution, weapons, targeting, or automated tactical recommendations. Abstract encounter outcomes are exercise inputs or instructor-adjudicated events, not predictions of combat effectiveness.
+
+<!--
+Removed at owner request, October 27, 2026. Not planned, and no requirements, design, or implementation work is tracked here:
+- Weapons systems and drone strike capability
+- Combat execution, targeting, and attack planning
+- Live-operation alerts and command of real assets
+-->
+
+## Built so far
+
+- Fictional map with generated or uploaded terrain, roads, and labelled features
+- Drag-and-drop units with per-node assignment cards and validation
+- Unit profiles and rosters
+- Run, pause, step, speed, real-time simulation in a desktop app (Rust engine)
+- Dependencies and travel along a road network, with arrival hold and confirmation
+- Unit icons, multi-select, undo and redo
+- 3D exercise view that follows a unit, with orbit controls
+
+## Phases (ordered by dependency, not calendar dates)
+
+### Phase 1: Scenario builder (in progress)
+- Done: map, drag, assignment inspector, dependencies, save and load, unit profiles
+- Remaining: grouping, templates, duplicate across selection
+
+### Phase 2: Simulation core (in progress)
+- Done: clock, event log, task states, travel, arrival confirmation
+- Remaining: seeded reproducibility checks across versions, resource accounting
+
+### Phase 3: Instructor controls
+- Instructor-triggered exercise events: road closure, communications outage, vehicle failure, weather change
+- Timestamped, shown on the timeline, logged in the audit trail
+- Engine reroutes units around closed roads
+- Alerts to trainees inside the exercise only, marked as exercise events
+
+### Phase 4: Calculation and validation
+- Resource consumption, queues, readiness, dependency delays
+- Hand-checkable reference cases; impossible states flagged
+- Repeated runs with varied inputs; uncertainty shown with results
+
+### Phase 5: Review and comparison
+- Timeline playback, task metrics, side-by-side run summaries
+- Exportable after-action review that traces each outcome to events and decisions
+
+### Phase 6: Simulated drones and sensors (training assets)
+- Surveillance coverage areas, battery and range limits, and loss or reassignment by the instructor
+- Exercise objects only; no link to real devices
+
+### Phase 7: Command flow in exercises
+- Orders from commander to units, acknowledgements, and status
+- Decision log for after-action review
+
+### Phase 8: Team pilot
+- Trainer, participant, and observer roles; access control; session isolation; shared exercises
+- Audit history
+
+### Phase 9: Product hardening
+- Performance benchmarks, accessibility, backup and restore, installer packaging, pilot feedback
+
+## Immediate next milestone
+
+Phase 3: the instructor event system, starting with road closures that the engine handles by rerouting units.
