@@ -1,8 +1,9 @@
 //! Discrete-event engine.
 //!
-//! Each task starts when its scheduled start time has arrived and every
-//! prerequisite has completed, then runs for its duration. Events are ordered by
-//! (time, sequence number), so ties always resolve the same way.
+//! A task starts when its scheduled start time has arrived and every prerequisite has
+//! completed. If the task has a destination, its unit first travels there (distance
+//! times a detour factor, at the unit's speed), then the work runs for its duration.
+//! Events are ordered by (time, sequence number), so ties always resolve the same way.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
@@ -12,11 +13,25 @@ use serde::Serialize;
 use crate::log::{Entry, EventLog};
 use crate::scenario::{parse_hhmm, Scenario, DEFAULT_DURATION_MIN};
 
+/// Straight-line distance is multiplied by this to approximate the route length.
+pub const DETOUR_FACTOR: f64 = 1.3;
+
+/// Default travel speed in km/h by unit type. Zero means the unit cannot move.
+pub fn default_speed_kmh(kind: &str) -> f64 {
+    match kind {
+        "team" | "personnel" => 4.0,
+        "transport" => 40.0,
+        _ => 0.0,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Kind {
     /// Scheduled start time reached: try to start the task.
     Gate,
-    /// Task duration elapsed: complete the task.
+    /// Travel finished: the unit has arrived and the work begins.
+    Arrive,
+    /// Work finished: complete the task.
     Finish,
 }
 
@@ -28,29 +43,10 @@ struct Event {
     task: usize,
 }
 
-/// Serialisable snapshot of a run.
-#[derive(Debug, Clone, Serialize)]
-pub struct Snapshot {
-    pub now_s: u64,
-    pub origin_s: u64,
-    pub finished: bool,
-    pub tasks: Vec<TaskView>,
-    pub log: Vec<Entry>,
-}
-
-/// One task as the user interface sees it.
-#[derive(Debug, Clone, Serialize)]
-pub struct TaskView {
-    pub id: String,
-    pub state: &'static str,
-    pub start_s: u64,
-    pub started_s: Option<u64>,
-    pub finished_s: Option<u64>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
     Pending,
+    Moving,
     Active,
     Complete,
 }
@@ -63,6 +59,11 @@ pub struct Task {
     pub state: State,
     pub started_s: Option<u64>,
     pub finished_s: Option<u64>,
+    pub departed_s: Option<u64>,
+    pub moves: bool,
+    pub travel_s: u64,
+    pub from: (f64, f64),
+    pub to: (f64, f64),
     prereqs: Vec<usize>,
     successors: Vec<usize>,
 }
@@ -97,9 +98,34 @@ impl Engine {
                 state: State::Pending,
                 started_s: None,
                 finished_s: None,
+                departed_s: None,
+                moves: node.assignment.destination_id.is_some(),
+                travel_s: 0,
+                from: (node.x, node.y),
+                to: (node.x, node.y),
                 prereqs: Vec::new(),
                 successors: Vec::new(),
             });
+        }
+
+        // Travel times, from positions and unit speeds.
+        for (i, node) in scenario.nodes.iter().enumerate() {
+            let Some(dest_id) = &node.assignment.destination_id else { continue };
+            let d = *index
+                .get(dest_id.as_str())
+                .ok_or_else(|| format!("node '{}' moves to missing node '{}'", node.id, dest_id))?;
+            let dest = &scenario.nodes[d];
+            let dist_m = (dest.x - node.x).hypot(dest.y - node.y) * DETOUR_FACTOR;
+            let speed = node.speed_kmh.unwrap_or_else(|| default_speed_kmh(&node.kind));
+            let travel_s = if dist_m == 0.0 {
+                0
+            } else if speed <= 0.0 {
+                return Err(format!("node '{}' has no speed but must travel to '{}'", node.id, dest_id));
+            } else {
+                (dist_m / (speed * 1000.0 / 3600.0)).round() as u64
+            };
+            tasks[i].to = (dest.x, dest.y);
+            tasks[i].travel_s = travel_s;
         }
 
         for dep in &scenario.dependencies {
@@ -167,6 +193,11 @@ impl Engine {
         self.now = ev.time;
         match ev.kind {
             Kind::Gate => self.try_start(ev.task),
+            Kind::Arrive => {
+                let id = self.tasks[ev.task].id.clone();
+                self.log.push(self.now, "arrived", &id);
+                self.begin_work(ev.task);
+            }
             Kind::Finish => {
                 let task = &mut self.tasks[ev.task];
                 task.state = State::Complete;
@@ -215,12 +246,17 @@ impl Engine {
                     id: t.id.clone(),
                     state: match t.state {
                         State::Pending => "pending",
+                        State::Moving => "moving",
                         State::Active => "active",
                         State::Complete => "complete",
                     },
                     start_s: t.start_s,
                     started_s: t.started_s,
                     finished_s: t.finished_s,
+                    departed_s: t.departed_s,
+                    arrive_s: t.departed_s.filter(|_| t.moves).map(|d| d + t.travel_s),
+                    from: t.moves.then_some([t.from.0, t.from.1]),
+                    to: t.moves.then_some([t.to.0, t.to.1]),
                 })
                 .collect(),
             log: self.log.entries.clone(),
@@ -243,6 +279,21 @@ impl Engine {
         if !ready {
             return;
         }
+        if self.tasks[idx].moves && self.tasks[idx].travel_s > 0 {
+            let travel = self.tasks[idx].travel_s;
+            let id = self.tasks[idx].id.clone();
+            let t = &mut self.tasks[idx];
+            t.state = State::Moving;
+            t.departed_s = Some(now);
+            self.log.push(now, "departed", &id);
+            self.schedule(now + travel, Kind::Arrive, idx);
+        } else {
+            self.begin_work(idx);
+        }
+    }
+
+    fn begin_work(&mut self, idx: usize) {
+        let now = self.now;
         let (id, duration) = {
             let t = &mut self.tasks[idx];
             t.state = State::Active;
@@ -257,4 +308,28 @@ impl Engine {
         self.seq += 1;
         self.queue.push(Reverse(Event { time, seq: self.seq, kind, task }));
     }
+}
+
+/// Serialisable snapshot of a run.
+#[derive(Debug, Clone, Serialize)]
+pub struct Snapshot {
+    pub now_s: u64,
+    pub origin_s: u64,
+    pub finished: bool,
+    pub tasks: Vec<TaskView>,
+    pub log: Vec<Entry>,
+}
+
+/// One task as the user interface sees it.
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskView {
+    pub id: String,
+    pub state: &'static str,
+    pub start_s: u64,
+    pub started_s: Option<u64>,
+    pub finished_s: Option<u64>,
+    pub departed_s: Option<u64>,
+    pub arrive_s: Option<u64>,
+    pub from: Option<[f64; 2]>,
+    pub to: Option<[f64; 2]>,
 }

@@ -2,7 +2,7 @@
 // The UI never computes task state; it only sends scenarios and shows snapshots.
 import { invoke } from '@tauri-apps/api/core';
 
-export type TaskState = 'pending' | 'active' | 'complete';
+export type TaskState = 'pending' | 'moving' | 'active' | 'complete';
 
 export interface TaskView {
   id: string;
@@ -10,6 +10,10 @@ export interface TaskView {
   start_s: number;
   started_s: number | null;
   finished_s: number | null;
+  departed_s: number | null;
+  arrive_s: number | null;
+  from: [number, number] | null;
+  to: [number, number] | null;
 }
 
 export interface LogEntry {

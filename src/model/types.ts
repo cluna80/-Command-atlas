@@ -20,6 +20,7 @@ export interface Assignment {
   start: string; // 24-hour HH:MM, exercise clock
   status?: Status; // defaults to Ready when absent
   durationMin?: number; // task length; the engine uses 30 when absent
+  destinationId?: string; // node the unit travels to before the work starts
   prerequisites: string;
   resourceRequirements: string;
   completionCriteria: string;
@@ -34,6 +35,7 @@ export interface ExerciseNode {
   y: number;
   personnel: number;
   assignment: Assignment;
+  speedKmh?: number; // travel speed; the engine uses a default for the unit type when absent
 }
 
 // fromId must finish before toId can start.

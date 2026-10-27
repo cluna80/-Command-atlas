@@ -28,6 +28,14 @@ pub struct Node {
     pub name: String,
     #[serde(default)]
     pub assignment: Assignment,
+    /// Position on the map in metres.
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    /// Travel speed in km/h. Defaults by unit type when absent.
+    #[serde(default)]
+    pub speed_kmh: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -39,6 +47,9 @@ pub struct Assignment {
     /// Task length in minutes. Defaults to DEFAULT_DURATION_MIN when absent.
     #[serde(default)]
     pub duration_min: Option<u64>,
+    /// Node the unit must travel to before the work starts.
+    #[serde(default)]
+    pub destination_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

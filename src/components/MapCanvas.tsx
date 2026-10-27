@@ -18,12 +18,23 @@ interface Props {
   view: View;
   fitToken: number; // bump to re-centre on the field
   tasks: TaskView[]; // engine task states; empty before a run
+  nowS: number; // exercise clock, used to place moving units
   onViewChange: (v: View) => void;
   onSelect: (id: string | null) => void;
   onMoveNode: (id: string, x: number, y: number) => void;
 }
 
-const STATE_LABEL: Record<TaskView['state'], string> = { pending: 'waiting', active: 'active', complete: 'done' };
+const STATE_LABEL: Record<TaskView['state'], string> = { pending: 'waiting', moving: 'moving', active: 'active', complete: 'done' };
+
+/** Where a unit is drawn: interpolated along its route while moving, otherwise its node position. */
+function unitPos(n: { x: number; y: number }, t: TaskView | undefined, now: number): { x: number; y: number } {
+  if (t?.state === 'moving' && t.from && t.to && t.departed_s !== null && t.arrive_s !== null) {
+    const span = t.arrive_s - t.departed_s;
+    const p = span > 0 ? clamp((now - t.departed_s) / span, 0, 1) : 1;
+    return { x: t.from[0] + (t.to[0] - t.from[0]) * p, y: t.from[1] + (t.to[1] - t.from[1]) * p };
+  }
+  return { x: n.x, y: n.y };
+}
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -43,7 +54,7 @@ export function clampView(v: View, w: number, h: number, MW: number, MH: number)
   };
 }
 
-export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, onViewChange, onSelect, onMoveNode }: Props) {
+export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, onViewChange, onSelect, onMoveNode }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -73,8 +84,8 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, onViewC
 
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
 
-  const propsRef = useRef({ scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById });
-  propsRef.current = { scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById };
+  const propsRef = useRef({ scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById, nowS });
+  propsRef.current = { scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById, nowS };
   const drag = useRef<null | { mode: 'pan' | 'node'; id?: string; sx: number; sy: number; ox: number; oy: number }>(null);
 
   const size = () => {
@@ -103,7 +114,7 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, onViewC
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
-    const { scenario: s, selectedId: sel, view: v, terrain: base, taskById: states } = propsRef.current;
+    const { scenario: s, selectedId: sel, view: v, terrain: base, taskById: states, nowS: now } = propsRef.current;
     const dpr = window.devicePixelRatio || 1;
     const w = wrap.clientWidth;
     const h = wrap.clientHeight;
@@ -150,13 +161,31 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, onViewC
     }
     ctx.setLineDash([]);
 
+    // Routes for units on the move
+    for (const t of states.values()) {
+      if (t.state !== 'moving' || !t.from || !t.to) continue;
+      ctx.setLineDash([12 / v.zoom, 9 / v.zoom]);
+      ctx.strokeStyle = '#7dd3fc';
+      ctx.lineWidth = 3 / v.zoom;
+      ctx.beginPath();
+      ctx.moveTo(t.from[0], t.from[1]);
+      ctx.lineTo(t.to[0], t.to[1]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(125,211,252,0.9)';
+      ctx.beginPath();
+      ctx.arc(t.to[0], t.to[1], 7 / v.zoom, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     const half = NODE_SIZE / 2;
     for (const n of s.nodes) {
       const st = states.get(n.id)?.state;
-      const x0 = n.x - half;
-      const y0 = n.y - half;
+      const pos = unitPos(n, states.get(n.id), now);
+      const x0 = pos.x - half;
+      const y0 = pos.y - half;
       ctx.globalAlpha = st === 'pending' ? 0.5 : 1;
-      drawUnitSymbol(ctx, n.kind, n.x, n.y, NODE_SIZE);
+      drawUnitSymbol(ctx, n.kind, pos.x, pos.y, NODE_SIZE);
       if (st === 'complete') {
         ctx.fillStyle = 'rgba(34,197,94,0.3)';
         ctx.fillRect(x0, y0, NODE_SIZE, NODE_SIZE);
@@ -177,8 +206,9 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, onViewC
     ctx.textAlign = 'center';
     for (const n of s.nodes) {
       const st = states.get(n.id)?.state;
-      const cx = n.x * v.zoom + v.panX;
-      const cy = n.y * v.zoom + v.panY;
+      const pos = unitPos(n, states.get(n.id), now);
+      const cx = pos.x * v.zoom + v.panX;
+      const cy = pos.y * v.zoom + v.panY;
       const sh = (NODE_SIZE * v.zoom) / 2;
 
       if (st === 'complete') {

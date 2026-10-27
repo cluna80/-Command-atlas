@@ -16,6 +16,7 @@ interface Draft {
   status: Status;
   start: string;
   durationMin: string;
+  destinationId: string;
   objective: string;
   prerequisites: string;
   resourceRequirements: string;
@@ -33,6 +34,7 @@ function toDraft(n: ExerciseNode): Draft {
     status: a.status ?? 'Ready',
     start: a.start,
     durationMin: a.durationMin === undefined ? '' : String(a.durationMin),
+    destinationId: a.destinationId ?? '',
     objective: a.objective,
     prerequisites: a.prerequisites,
     resourceRequirements: a.resourceRequirements,
@@ -53,6 +55,7 @@ function fromDraft(n: ExerciseNode, d: Draft): ExerciseNode {
       status: d.status,
       start: d.start,
       durationMin: d.durationMin.trim() === '' ? undefined : Number(d.durationMin),
+      destinationId: d.destinationId === '' ? undefined : d.destinationId,
       objective: d.objective,
       prerequisites: d.prerequisites,
       resourceRequirements: d.resourceRequirements,
@@ -159,6 +162,15 @@ export function Inspector({ node, scenario, onApply, onDelete, onDuplicate, onAd
             <div className="readonly">
               {prerequisites.length ? prerequisites.map((d) => byId.get(d.fromId)?.name ?? 'missing').join(', ') : 'None'}
             </div>
+          </div>
+          <div className="row">
+            <label>Move to</label>
+            <select className="field" value={draft.destinationId} onChange={(e) => set('destinationId', e.target.value)}>
+              <option value="">Stay in place</option>
+              {scenario.nodes.filter((n) => n.id !== node.id).map((n) => (
+                <option key={n.id} value={n.id}>{n.name}</option>
+              ))}
+            </select>
           </div>
           <div className="block">
             <label>Objective</label>

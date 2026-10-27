@@ -191,6 +191,7 @@ export default function App() {
           view={view}
           fitToken={fitToken}
           tasks={sim.snap?.tasks ?? []}
+          nowS={sim.snap?.now_s ?? 0}
           onViewChange={setView}
           onSelect={setSelectedId}
           onMoveNode={(id, x, y) => updateNode(id, { x, y })}

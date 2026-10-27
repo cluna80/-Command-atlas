@@ -98,6 +98,9 @@ export function nodeErrors(node: ExerciseNode): Record<string, string> {
   if (a.durationMin !== undefined && (!Number.isInteger(a.durationMin) || a.durationMin < 1 || a.durationMin > 1440)) {
     errors.duration = 'Duration must be a whole number of minutes from 1 to 1440.';
   }
+  if (node.speedKmh !== undefined && !(node.speedKmh > 0)) {
+    errors.speed = 'Speed must be greater than 0 km/h.';
+  }
   if (a.status !== undefined && !['Ready', 'Standby', 'Blocked'].includes(a.status)) {
     errors.status = 'Status must be Ready, Standby, or Blocked.';
   }
@@ -145,6 +148,13 @@ export function validateScenario(s: Scenario): ValidationIssue[] {
     for (const [field, message] of Object.entries(nodeErrors(n))) {
       issues.push({ where: n.name, message: `${field}: ${message}` });
     }
+  }
+
+  for (const n of s.nodes) {
+    const dest = n.assignment?.destinationId;
+    if (dest === undefined) continue;
+    if (!ids.has(dest)) issues.push({ where: n.name, message: `destination: '${dest}' is not a node.` });
+    else if (dest === n.id) issues.push({ where: n.name, message: 'destination: a unit cannot move to itself.' });
   }
 
   const seen = new Set<string>();

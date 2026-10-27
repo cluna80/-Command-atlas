@@ -134,3 +134,57 @@ fn advance_to_never_passes_the_horizon() {
     assert_eq!(e.now(), 8 * 3600 + 20 * 60);
     assert!(e.snapshot().finished);
 }
+
+const MOVE: &str = r#"{
+  "schemaVersion": 1, "name": "move",
+  "nodes": [
+    {"id": "team", "kind": "team", "name": "Team", "x": 0, "y": 0,
+     "assignment": {"start": "08:00", "durationMin": 10, "destinationId": "site"}},
+    {"id": "site", "kind": "supply", "name": "Site", "x": 1000, "y": 0,
+     "assignment": {"start": "00:00", "durationMin": 0}}
+  ],
+  "dependencies": []
+}"#;
+
+#[test]
+fn travel_time_comes_before_the_work() {
+    // 1000 m straight line x 1.3 detour = 1300 m at 4 km/h (1.111 m/s) = 1170 s.
+    // Departs 08:00, arrives 08:19:30, works 10 minutes, completes 08:29:30.
+    let mut e = Engine::new(&scenario(MOVE), 12 * 3600).unwrap();
+    e.run_to_end();
+    let team: Vec<(u64, &str)> = e
+        .log()
+        .entries
+        .iter()
+        .filter(|x| x.task_id == "team")
+        .map(|x| (x.t_s, x.event))
+        .collect();
+    assert_eq!(
+        team,
+        vec![
+            (8 * 3600, "departed"),
+            (8 * 3600 + 1170, "arrived"),
+            (8 * 3600 + 1170, "started"),
+            (8 * 3600 + 1170 + 600, "completed"),
+        ]
+    );
+}
+
+#[test]
+fn a_unit_with_zero_speed_cannot_be_sent_to_move() {
+    let bad = MOVE.replace("\"x\": 0, \"y\": 0,", "\"x\": 0, \"y\": 0, \"speedKmh\": 0,");
+    let err = Engine::new(&scenario(&bad), 12 * 3600).unwrap_err();
+    assert!(err.contains("no speed"), "error was: {err}");
+}
+
+#[test]
+fn a_task_that_moves_reports_its_route_in_the_snapshot() {
+    let mut e = Engine::new(&scenario(MOVE), 12 * 3600).unwrap();
+    e.advance_to(8 * 3600 + 60);
+    let snap = e.snapshot();
+    let team = snap.tasks.iter().find(|t| t.id == "team").unwrap();
+    assert_eq!(team.state, "moving");
+    assert_eq!(team.arrive_s, Some(8 * 3600 + 1170));
+    assert_eq!(team.from, Some([0.0, 0.0]));
+    assert_eq!(team.to, Some([1000.0, 0.0]));
+}
