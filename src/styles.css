@@ -274,3 +274,4 @@ button:disabled { cursor: default; opacity: 0.45; }
 .view3dNote { color: var(--muted); font-size: 11px; font-style: italic; margin-left: auto; }
 
 .destLabel { position: absolute; transform: translate(-50%, -100%); background: rgba(10,19,34,0.9); border: 1px solid #f5b400; color: #fde68a; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 5px; pointer-events: none; white-space: nowrap; }
+.view3dError { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); background: #2a1214; border: 1px solid var(--red); color: #fca5a5; padding: 12px 16px; border-radius: 8px; max-width: 480px; text-align: center; }

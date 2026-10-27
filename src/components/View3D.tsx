@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ExerciseNode, Scenario } from '../model/types';
@@ -39,6 +39,7 @@ function unitPos(n: { x: number; y: number }, t: TaskView | undefined, now: numb
 export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const destLabelRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
   // Snapshots arrive about once a second. Between them, the clock is extrapolated from the
   // wall clock so motion is smooth while running.
   const snapAt = useRef({ at: performance.now(), now: nowS });
@@ -165,8 +166,22 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
     let routeLine: THREE.Line | null = null;
 
     let frame = 0;
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      setError('The 3D graphics context was lost. Close and reopen the 3D view.');
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onLost);
     const tick = () => {
       frame = requestAnimationFrame(tick);
+      try {
+        drawFrame();
+      } catch (err) {
+        cancelAnimationFrame(frame);
+        console.error('3D view error', err);
+        setError(`3D view stopped: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+    const drawFrame = () => {
       const { tasks: ts, unit: u, running: isRunning, speed: sp } = live.current;
       const elapsedS = (performance.now() - snapAt.current.at) / 1000;
       const now = isRunning ? snapAt.current.now + elapsedS * sp : snapAt.current.now;
@@ -241,6 +256,7 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
     window.addEventListener('resize', onResize);
     return () => {
       cancelAnimationFrame(frame);
+      renderer.domElement.removeEventListener('webglcontextlost', onLost);
       controls.dispose();
       window.removeEventListener('resize', onResize);
       renderer.dispose();
@@ -254,6 +270,7 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
     <div className="view3d">
       <div ref={mountRef} className="view3dCanvas" />
       <div ref={destLabelRef} className="destLabel" style={{ display: 'none' }} />
+      {error && <div className="view3dError">{error}</div>}
       <div className="view3dBar">
         <span className="view3dTitle">3D view · {unit.name}</span>
         <span className="view3dState">{t ? t.state : 'not started'}</span>
