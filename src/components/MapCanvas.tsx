@@ -294,12 +294,14 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, o
     return { sx: e.clientX - rect.left, sy: e.clientY - rect.top };
   };
 
+  // Hit-test where each unit is drawn (moving or arrived units are not at their stored position).
   const hitNode = (wx: number, wy: number) => {
     const half = NODE_SIZE / 2;
-    const { scenario: s } = propsRef.current;
+    const { scenario: s, taskById: states, nowS: now } = propsRef.current;
     for (let i = s.nodes.length - 1; i >= 0; i--) {
       const n = s.nodes[i];
-      if (Math.abs(wx - n.x) <= half && Math.abs(wy - n.y) <= half) return n;
+      const p = unitPos(n, states.get(n.id), now);
+      if (Math.abs(wx - p.x) <= half && Math.abs(wy - p.y) <= half) return n;
     }
     return null;
   };
