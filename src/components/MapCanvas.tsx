@@ -22,6 +22,8 @@ interface Props {
   nowS: number; // exercise clock, used to place moving units
   onViewChange: (v: View) => void;
   onSelect: (id: string | null) => void;
+  multiIds?: string[]; // units in the multi-selection
+  onShiftSelect?: (id: string) => void;
   onMoveNode: (id: string, x: number, y: number) => void;
 }
 
@@ -63,7 +65,7 @@ export function clampView(v: View, w: number, h: number, MW: number, MH: number)
   };
 }
 
-export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, onViewChange, onSelect, onMoveNode }: Props) {
+export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, onViewChange, onSelect, onMoveNode, multiIds = [], onShiftSelect }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -94,8 +96,8 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, o
 
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
 
-  const propsRef = useRef({ scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById, nowS });
-  propsRef.current = { scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById, nowS };
+  const propsRef = useRef({ scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById, nowS, multiIds, onShiftSelect });
+  propsRef.current = { scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById, nowS, multiIds, onShiftSelect };
   const drag = useRef<null | { mode: 'pan' | 'node'; id?: string; sx: number; sy: number; ox: number; oy: number }>(null);
 
   const size = () => {
@@ -124,7 +126,8 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, o
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
-    const { scenario: s, selectedId: sel, view: v, terrain: base, taskById: states, nowS: now } = propsRef.current;
+    const { scenario: s, selectedId: sel, view: v, terrain: base, taskById: states, nowS: now, multiIds: multi } = propsRef.current;
+    const isSelected = (id: string) => id === sel || multi.includes(id);
     const dpr = window.devicePixelRatio || 1;
     const w = wrap.clientWidth;
     const h = wrap.clientHeight;
@@ -197,7 +200,7 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, o
       const x0 = pos.x - half;
       const y0 = pos.y - half;
       ctx.globalAlpha = st === 'pending' ? 0.5 : 1;
-      drawUnitSymbol(ctx, n.kind, pos.x, pos.y, NODE_SIZE);
+      drawUnitSymbol(ctx, n.kind, pos.x, pos.y, NODE_SIZE, n.roster?.length ?? 0);
       if (st === 'complete') {
         ctx.fillStyle = 'rgba(34,197,94,0.3)';
         ctx.fillRect(x0, y0, NODE_SIZE, NODE_SIZE);
@@ -208,8 +211,8 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, o
         ctx.lineWidth = 6 / v.zoom;
         ctx.strokeRect(x0 - 3 / v.zoom, y0 - 3 / v.zoom, NODE_SIZE + 6 / v.zoom, NODE_SIZE + 6 / v.zoom);
       }
-      ctx.strokeStyle = n.id === sel ? '#38bdf8' : st === 'complete' ? '#22c55e' : 'rgba(0,0,0,0.55)';
-      ctx.lineWidth = (n.id === sel ? 4 : 2) / v.zoom;
+      ctx.strokeStyle = isSelected(n.id) ? '#38bdf8' : st === 'complete' ? '#22c55e' : 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = (isSelected(n.id) ? 4 : 2) / v.zoom;
       ctx.strokeRect(x0, y0, NODE_SIZE, NODE_SIZE);
     }
 
@@ -303,8 +306,12 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, o
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const { sx, sy } = localPoint(e);
-    const { view: v, onSelect: select } = propsRef.current;
+    const { view: v, onSelect: select, onShiftSelect: shiftSelect } = propsRef.current;
     const hit = hitNode((sx - v.panX) / v.zoom, (sy - v.panY) / v.zoom);
+    if (hit && e.shiftKey && shiftSelect) {
+      shiftSelect(hit.id);
+      return;
+    }
     if (hit) {
       select(hit.id);
       drag.current = { mode: 'node', id: hit.id, sx, sy, ox: hit.x, oy: hit.y };

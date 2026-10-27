@@ -39,7 +39,7 @@ function person(ctx: CanvasRenderingContext2D, dx: number, dy: number, sc: numbe
 }
 
 /** Draws the icon centred on (cx, cy) in a square of `size` map units. */
-export function drawUnitSymbol(ctx: CanvasRenderingContext2D, kind: NodeKind, cx: number, cy: number, size: number) {
+export function drawUnitSymbol(ctx: CanvasRenderingContext2D, kind: NodeKind, cx: number, cy: number, size: number, squad = 0) {
   const r = size * 0.46;
   const k = (size * 0.62) / 24; // icon scale: 24 icon units -> map units
   const medical = kind === 'medical';
@@ -54,7 +54,11 @@ export function drawUnitSymbol(ctx: CanvasRenderingContext2D, kind: NodeKind, cx
   ctx.shadowOffsetY = size * 0.05;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = medical ? '#f4f6fa' : FRIENDLY;
+  const base = medical ? '#f4f6fa' : FRIENDLY;
+  const sheen = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
+  sheen.addColorStop(0, medical ? '#ffffff' : '#7fb3ff');
+  sheen.addColorStop(1, base);
+  ctx.fillStyle = sheen;
   ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.lineWidth = size * 0.035;
@@ -104,6 +108,17 @@ export function drawUnitSymbol(ctx: CanvasRenderingContext2D, kind: NodeKind, cx
       ctx.lineWidth = 1.2 * k;
       icon(ctx, RADIO_GRILL, cx, cy, k, false);
       break;
+  }
+  // Squad pips: one dot per roster member along the lower rim, up to six.
+  const count = Math.min(6, Math.max(0, squad));
+  if (count > 0) {
+    ctx.fillStyle = INK;
+    for (let i = 0; i < count; i++) {
+      const a = Math.PI * (0.3 + (0.4 * (count === 1 ? 0.5 : i / (count - 1))));
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(a) * r * 0.82, cy + Math.sin(a) * r * 0.82, size * 0.035, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }

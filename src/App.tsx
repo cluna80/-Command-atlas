@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapCanvas, type View } from './components/MapCanvas';
 import { Inspector } from './components/Inspector';
 import { TopBar } from './components/TopBar';
@@ -30,6 +30,75 @@ const clampNodes = (nodes: ExerciseNode[], width: number, height: number) =>
 export default function App() {
   const [scenario, setScenario] = useState<Scenario>(() => createSampleScenario());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [multi, setMulti] = useState<string[]>([]);
+  const selection = multi.length > 1 ? multi : selectedId ? [selectedId] : [];
+
+  // Undo / redo. Changes made within 400 ms of each other count as one step (for example, a drag).
+  const committed = useRef(scenario);
+  const hist = useRef<{ past: Scenario[]; future: Scenario[]; last: number }>({ past: [], future: [], last: 0 });
+  const [, setHistoryTick] = useState(0);
+  useEffect(() => {
+    if (scenario === committed.current) return;
+    const now = Date.now();
+    if (now - hist.current.last > 400) {
+      hist.current.past.push(committed.current);
+      if (hist.current.past.length > 100) hist.current.past.shift();
+    }
+    hist.current.future = [];
+    hist.current.last = now;
+    committed.current = scenario;
+    setHistoryTick((t) => t + 1);
+  }, [scenario]);
+  const undo = () => {
+    const h = hist.current;
+    const prev = h.past.pop();
+    if (!prev) return;
+    h.future.push(committed.current);
+    committed.current = prev;
+    h.last = 0;
+    setScenario(prev);
+    setMulti([]);
+    setHistoryTick((t) => t + 1);
+  };
+  const redo = () => {
+    const h = hist.current;
+    const next = h.future.pop();
+    if (!next) return;
+    h.past.push(committed.current);
+    committed.current = next;
+    h.last = 0;
+    setScenario(next);
+    setMulti([]);
+    setHistoryTick((t) => t + 1);
+  };
+
+  const toggleMulti = (id: string) => {
+    const base = multi.length ? multi : selectedId ? [selectedId] : [];
+    const next = base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+    setMulti(next);
+    setSelectedId(next.length ? id : null);
+  };
+  const deleteSelection = () => {
+    const ids = selection;
+    setScenario((s) => ({
+      ...s,
+      nodes: s.nodes.filter((n) => !ids.includes(n.id)),
+      dependencies: s.dependencies.filter((d) => !ids.includes(d.fromId) && !ids.includes(d.toId)),
+    }));
+    setMulti([]);
+    setSelectedId(null);
+  };
+  // Dragging a unit that is part of a multi-selection moves the whole selection by the same amount.
+  const moveNodes = (id: string, x: number, y: number) => {
+    const ids = selection.includes(id) && selection.length > 1 ? selection : [id];
+    setScenario((s) => {
+      const lead = s.nodes.find((n) => n.id === id);
+      if (!lead) return s;
+      const dx = x - lead.x;
+      const dy = y - lead.y;
+      return { ...s, nodes: s.nodes.map((n) => (ids.includes(n.id) ? { ...n, x: n.x + dx, y: n.y + dy } : n)) };
+    });
+  };
   const [view, setView] = useState<View>({ panX: 0, panY: 0, zoom: 1 });
   const [fitToken, setFitToken] = useState(0);
   const [view3d, setView3d] = useState(false);
@@ -158,9 +227,26 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.key === 'Escape') setSelectedId(null);
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (mod && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (e.key === 'Escape') {
+        setSelectedId(null);
+        setMulti([]);
+      }
       if (!selectedId) return;
-      if (e.key === 'Delete' || e.key === 'Backspace') deleteNode(selectedId);
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selection.length > 1) deleteSelection();
+        else deleteNode(selectedId);
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateNode(selectedId);
@@ -187,6 +273,8 @@ export default function App() {
       <AssetLibrary
         onAdd={addNode}
         selected={selected}
+        selectionCount={selection.length}
+        onDeleteSelection={deleteSelection}
         onOpen3D={() => setView3d(true)}
       />
 
@@ -199,8 +287,13 @@ export default function App() {
           tasks={sim.snap?.tasks ?? []}
           nowS={sim.snap?.now_s ?? 0}
           onViewChange={setView}
-          onSelect={setSelectedId}
-          onMoveNode={(id, x, y) => updateNode(id, { x, y })}
+          onSelect={(id) => {
+            setMulti([]);
+            setSelectedId(id);
+          }}
+          multiIds={multi}
+          onShiftSelect={toggleMulti}
+          onMoveNode={moveNodes}
         />
         {notice && (
           <div className="notice">
@@ -213,6 +306,10 @@ export default function App() {
             <button className="linkBtn" onClick={() => setNotice(null)}>Dismiss</button>
           </div>
         )}
+        <div className="histBar">
+          <button onClick={undo} disabled={hist.current.past.length === 0} title="Undo (Ctrl+Z)">Undo</button>
+          <button onClick={redo} disabled={hist.current.future.length === 0} title="Redo (Ctrl+Shift+Z)">Redo</button>
+        </div>
       </main>
 
       <aside className="inspectorPane">

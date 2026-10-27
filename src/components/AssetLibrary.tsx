@@ -57,10 +57,14 @@ const GROUPS: Group[] = [
 export function AssetLibrary({
   onAdd,
   selected,
+  selectionCount = 0,
+  onDeleteSelection,
   onOpen3D,
 }: {
   onAdd: (kind: NodeKind) => void;
   selected: ExerciseNode | null;
+  selectionCount?: number;
+  onDeleteSelection?: () => void;
   onOpen3D: () => void;
 }) {
   const [groups, setGroups] = useState(GROUPS);
@@ -70,7 +74,13 @@ export function AssetLibrary({
   return (
     <aside className="library">
       <div className="libTitle">Selected unit</div>
-      {selected ? (
+      {selectionCount > 1 ? (
+        <div className="selCard">
+          <div className="selName">{selectionCount} units selected</div>
+          <div className="selHint">Drag any selected unit to move them together. Shift-click to add or remove units.</div>
+          <button className="selBtn danger" onClick={onDeleteSelection}>Delete selected</button>
+        </div>
+      ) : selected ? (
         <div className="selCard">
           <div className="selName">{selected.name}</div>
           <button className="selBtn" onClick={onOpen3D}>3D view</button>
