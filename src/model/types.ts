@@ -43,6 +43,7 @@ export interface Scenario {
   schemaVersion: number;
   name: string;
   map: { width: number; height: number };
+  terrain?: { seed: number; image?: string }; // image = uploaded base map as a data URL
   nodes: ExerciseNode[];
   dependencies: Dependency[];
 }

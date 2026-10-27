@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NodeKind, Scenario } from '../model/types';
 import { NODE_SIZE } from '../model/scenario';
+import { renderTerrain } from '../map/terrain';
 
 export interface View {
   panX: number;
@@ -27,21 +28,37 @@ const COLORS: Record<NodeKind, string> = {
   communications: '#a78bfa',
 };
 
-const CONTOURS: [number, number, number][] = [
-  [0.2, 0.2, 220],
-  [0.22, 0.21, 330],
-  [0.75, 0.8, 260],
-  [0.55, 0.12, 180],
-];
-
 const FIT_PADDING = 60;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, onSelect, onMoveNode }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const propsRef = useRef({ scenario, selectedId, view, onViewChange, onSelect, onMoveNode });
-  propsRef.current = { scenario, selectedId, view, onViewChange, onSelect, onMoveNode };
+  const generated = useMemo(
+    () =>
+      scenario.terrain?.image
+        ? null
+        : renderTerrain(scenario.map.width, scenario.map.height, scenario.terrain?.seed ?? 1),
+    [scenario.map.width, scenario.map.height, scenario.terrain?.seed, scenario.terrain?.image],
+  );
+  const imageSrc = scenario.terrain?.image;
+  const [uploaded, setUploaded] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    setUploaded(null);
+    if (!imageSrc) return;
+    const img = new Image();
+    let live = true;
+    img.onload = () => {
+      if (live) setUploaded(img);
+    };
+    img.src = imageSrc;
+    return () => {
+      live = false;
+    };
+  }, [imageSrc]);
+  const terrain: CanvasImageSource | null = imageSrc ? uploaded : generated;
+  const propsRef = useRef({ scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain });
+  propsRef.current = { scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain };
   const drag = useRef<null | { mode: 'pan' | 'node'; id?: string; sx: number; sy: number; ox: number; oy: number }>(null);
 
   const draw = () => {
@@ -67,31 +84,13 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, 
     ctx.setTransform(dpr * v.zoom, 0, 0, dpr * v.zoom, dpr * v.panX, dpr * v.panY);
     const { width: MW, height: MH } = s.map;
 
-    ctx.fillStyle = '#36552f';
-    ctx.fillRect(0, 0, MW, MH);
-    ctx.strokeStyle = 'rgba(201,185,138,0.22)';
-    ctx.lineWidth = 1.5 / v.zoom;
-    for (const [fx, fy, r] of CONTOURS) {
-      ctx.beginPath();
-      ctx.arc(fx * MW, fy * MH, r, 0, Math.PI * 2);
-      ctx.stroke();
+    const base = propsRef.current.terrain;
+    if (base) {
+      ctx.drawImage(base, 0, 0, MW, MH);
+    } else {
+      ctx.fillStyle = '#2b3a2a';
+      ctx.fillRect(0, 0, MW, MH);
     }
-
-    ctx.beginPath();
-    ctx.ellipse(0.87 * MW, 0.2 * MH, 0.1 * MW, 0.08 * MH, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#2c5f78';
-    ctx.fill();
-    ctx.strokeStyle = '#4b8ca8';
-    ctx.lineWidth = 3 / v.zoom;
-    ctx.stroke();
-
-    const river: [number, number][] = [[0.28, 0], [0.26, 0.2], [0.23, 0.45], [0.27, 0.7], [0.21, 1]];
-    ctx.beginPath();
-    river.forEach(([fx, fy], i) => (i ? ctx.lineTo(fx * MW, fy * MH) : ctx.moveTo(fx * MW, fy * MH)));
-    ctx.strokeStyle = '#2f6d8f';
-    ctx.lineWidth = 14 / v.zoom;
-    ctx.lineCap = 'round';
-    ctx.stroke();
 
     ctx.strokeStyle = 'rgba(255,255,255,0.06)';
     ctx.lineWidth = 1 / v.zoom;

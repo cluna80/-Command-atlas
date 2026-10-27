@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MapCanvas, type View } from './components/MapCanvas';
 import { Inspector } from './components/Inspector';
 import {
+  NODE_SIZE,
   createNode,
   createSampleScenario,
   newId,
@@ -19,6 +20,59 @@ export default function App() {
   const [notice, setNotice] = useState<{ title: string; issues: ValidationIssue[] } | null>(null);
 
   const issues = useMemo(() => validateScenario(scenario), [scenario]);
+  const MAP_WIDTH = 1400;
+  const clampNodes = (nodes: ExerciseNode[], width: number, height: number) =>
+    nodes.map((n) => ({
+      ...n,
+      x: Math.min(width - NODE_SIZE / 2, Math.max(NODE_SIZE / 2, n.x)),
+      y: Math.min(height - NODE_SIZE / 2, Math.max(NODE_SIZE / 2, n.y)),
+    }));
+
+  const loadBaseMap = async (file: File) => {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2800 / bitmap.width);
+    const c = document.createElement('canvas');
+    c.width = Math.round(bitmap.width * scale);
+    c.height = Math.round(bitmap.height * scale);
+    c.getContext('2d')!.drawImage(bitmap, 0, 0, c.width, c.height);
+    bitmap.close();
+    const dataUrl = c.toDataURL('image/jpeg', 0.9);
+    const width = MAP_WIDTH;
+    const height = Math.round((MAP_WIDTH * c.height) / c.width);
+    setScenario((s) => ({
+      ...s,
+      map: { width, height },
+      terrain: { seed: s.terrain?.seed ?? 1, image: dataUrl },
+      nodes: clampNodes(s.nodes, width, height),
+    }));
+    setFitToken((t) => t + 1);
+  };
+
+  const onMapFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      await loadBaseMap(file);
+    } catch {
+      setNotice({
+        title: `Could not use ${file.name}`,
+        issues: [{ where: 'file', message: 'Choose a JPG, PNG, or other image file.' }],
+      });
+    }
+  };
+
+  const useGeneratedTerrain = () => {
+    const width = MAP_WIDTH;
+    const height = 1000;
+    setScenario((s) => ({
+      ...s,
+      map: { width, height },
+      terrain: { seed: s.terrain?.seed ?? 1 },
+      nodes: clampNodes(s.nodes, width, height),
+    }));
+    setFitToken((t) => t + 1);
+  };
   const selected = scenario.nodes.find((n) => n.id === selectedId) ?? null;
 
   const updateNode = (id: string, patch: Partial<ExerciseNode>) =>
@@ -148,6 +202,17 @@ export default function App() {
             + {k}
           </button>
         ))}
+        <div className="panelTitle" style={{ marginTop: 16 }}>Base map</div>
+        <label className="paletteItem">
+          Upload map image
+          <input type="file" accept="image/*" hidden onChange={onMapFile} />
+        </label>
+        {scenario.terrain?.image && (
+          <button className="paletteItem" onClick={useGeneratedTerrain}>Use generated terrain</button>
+        )}
+        <div className="hint">
+          {scenario.terrain?.image ? 'Using your uploaded map.' : 'Using generated terrain.'}
+        </div>
         <div className="panelTitle" style={{ marginTop: 16 }}>View</div>
         <button className="paletteItem" onClick={() => setFitToken((t) => t + 1)}>Reset view</button>
       </aside>

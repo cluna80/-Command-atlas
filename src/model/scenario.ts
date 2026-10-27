@@ -54,6 +54,7 @@ export function createSampleScenario(): Scenario {
     schemaVersion: SCHEMA_VERSION,
     name: 'Fictional evacuation and sustainment',
     map: { width: 1400, height: 1000 },
+    terrain: { seed: 42 },
     nodes: [
       {
         id: 'alpha', kind: 'team', name: 'Team Alpha', x: 520, y: 520, personnel: 12,
@@ -121,6 +122,14 @@ export function validateScenario(s: Scenario): ValidationIssue[] {
   if (!s.name?.trim()) issues.push({ where: 'scenario', message: 'Scenario name is required.' });
   if (!(s.map?.width > 0) || !(s.map?.height > 0)) {
     issues.push({ where: 'scenario', message: 'Map width and height must be positive.' });
+  }
+
+  if (s.terrain !== undefined && !Number.isInteger(s.terrain?.seed)) {
+    issues.push({ where: 'scenario', message: 'terrain.seed must be an integer.' });
+  }
+
+  if (s.terrain?.image !== undefined && !/^data:image\//.test(s.terrain.image)) {
+    issues.push({ where: 'scenario', message: 'terrain.image must be an image data URL.' });
   }
 
   const ids = new Set<string>();

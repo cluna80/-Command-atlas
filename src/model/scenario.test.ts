@@ -37,3 +37,17 @@ describe('scenario save/load', () => {
     expect(validateScenario(s).some((i) => i.message.includes('cycle'))).toBe(true);
   });
 });
+
+describe('uploaded base map', () => {
+  it('rejects a terrain image that is not an image data URL', () => {
+    const s = createSampleScenario();
+    s.terrain = { seed: 42, image: 'https://example.com/map.png' };
+    expect(validateScenario(s).some((i) => i.where === 'scenario' && i.message.includes('image data URL'))).toBe(true);
+  });
+
+  it('accepts an image data URL', () => {
+    const s = createSampleScenario();
+    s.terrain = { seed: 42, image: 'data:image/jpeg;base64,AAAA' };
+    expect(validateScenario(s)).toEqual([]);
+  });
+});

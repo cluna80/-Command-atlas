@@ -192,3 +192,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .inspectorActions button.danger { color: #f87171; }
 .empty { color: var(--muted); padding: 16px; }
+
+.paletteItem { cursor: pointer; }
+.hint { color: var(--muted); font-size: 11px; margin: 6px 2px 0; line-height: 1.4; }
