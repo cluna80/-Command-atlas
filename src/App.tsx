@@ -240,6 +240,8 @@ export default function App() {
             unit={selected}
             tasks={sim.snap?.tasks ?? []}
             nowS={sim.snap?.now_s ?? 0}
+            running={sim.running}
+            speed={sim.speed}
             onClose={() => setView3d(false)}
           />
         </div>

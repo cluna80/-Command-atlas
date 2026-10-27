@@ -10,6 +10,8 @@ interface Props {
   unit: ExerciseNode;
   tasks: TaskView[];
   nowS: number;
+  running: boolean;
+  speed: number;
   onClose: () => void;
 }
 
@@ -33,8 +35,14 @@ function unitPos(n: { x: number; y: number }, t: TaskView | undefined, now: numb
   return { x: n.x, y: n.y };
 }
 
-export function View3D({ scenario, unit, tasks, nowS, onClose }: Props) {
+export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
+  // Snapshots arrive about once a second. Between them, the clock is extrapolated from the
+  // wall clock so motion is smooth while running.
+  const snapAt = useRef({ at: performance.now(), now: nowS });
+  useEffect(() => {
+    snapAt.current = { at: performance.now(), now: nowS };
+  }, [nowS]);
   const W = scenario.map.width;
   const H = scenario.map.height;
   const hasElevation = !scenario.terrain?.image;
@@ -47,8 +55,8 @@ export function View3D({ scenario, unit, tasks, nowS, onClose }: Props) {
   }, [W, H, hasElevation, scenario.terrain?.seed]);
 
   // Latest state for the animation loop.
-  const live = useRef({ tasks, nowS, unit, scenario });
-  live.current = { tasks, nowS, unit, scenario };
+  const live = useRef({ tasks, unit, scenario, running, speed });
+  live.current = { tasks, unit, scenario, running, speed };
 
   useEffect(() => {
     const el = mountRef.current!;
@@ -113,7 +121,9 @@ export function View3D({ scenario, unit, tasks, nowS, onClose }: Props) {
     let frame = 0;
     const tick = () => {
       frame = requestAnimationFrame(tick);
-      const { tasks: ts, nowS: now, unit: u } = live.current;
+      const { tasks: ts, unit: u, running: isRunning, speed: sp } = live.current;
+      const elapsedS = (performance.now() - snapAt.current.at) / 1000;
+      const now = isRunning ? snapAt.current.now + elapsedS * sp : snapAt.current.now;
       const t = ts.find((x) => x.id === u.id);
       const p = unitPos(u, t, now);
       const y = groundY(p.x, p.y);
