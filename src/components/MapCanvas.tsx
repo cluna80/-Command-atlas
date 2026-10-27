@@ -25,11 +25,11 @@ interface Props {
   onMoveNode: (id: string, x: number, y: number) => void;
 }
 
-const STATE_LABEL: Record<TaskView['state'], string> = { pending: 'waiting', moving: 'moving', active: 'active', complete: 'done' };
+const STATE_LABEL: Record<TaskView['state'], string> = { pending: 'waiting', moving: 'moving', arrived: 'arrived, confirming', active: 'active', complete: 'done' };
 
 /** Where a unit is drawn: along its route while moving, otherwise at its node. */
 function unitPos(n: { x: number; y: number }, t: TaskView | undefined, now: number): { x: number; y: number } {
-  if (t?.state === 'moving' && t.route && t.route.length > 0 && t.departed_s !== null) {
+  if ((t?.state === 'moving' || t?.state === 'arrived' || t?.state === 'active' || t?.state === 'complete') && t.arrived && t.route && t.route.length > 0 && t.departed_s !== null) {
     const r = t.route;
     const elapsed = now - t.departed_s;
     if (elapsed <= r[0].t) return { x: r[0].x, y: r[0].y };

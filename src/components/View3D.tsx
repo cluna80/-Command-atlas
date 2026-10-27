@@ -21,7 +21,7 @@ const GRID = 140; // terrain resolution
 
 /** Same position logic as the 2D map: along the route while moving. */
 function unitPos(n: { x: number; y: number }, t: TaskView | undefined, now: number) {
-  if (t?.state === 'moving' && t.route && t.route.length > 0 && t.departed_s !== null) {
+  if (t && t.arrived && t.route && t.route.length > 0 && t.departed_s !== null) {
     const r = t.route;
     const e = now - t.departed_s;
     for (let i = 0; i < r.length - 1; i++) {
@@ -179,9 +179,10 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
       (core.material as THREE.MeshStandardMaterial).emissive.set(colour).multiplyScalar(0.35);
       (halo.material as THREE.MeshBasicMaterial).color.set(colour);
       (ring.material as THREE.MeshBasicMaterial).color.set(colour);
+      const holding = t?.state === 'arrived';
 
       // Breathing: a slow swell and fade, faster while the unit is moving or working.
-      const period = t?.state === 'moving' || t?.state === 'active' ? 1.6 : 2.6;
+      const period = t?.state === 'moving' || t?.state === 'active' ? 1.6 : holding ? 1.2 : 2.6;
       const phase = (Math.sin((performance.now() / 1000) * (2 * Math.PI / period)) + 1) / 2;
       halo.scale.setScalar(0.85 + 0.45 * phase);
       core.scale.setScalar(0.9 + 0.2 * phase);

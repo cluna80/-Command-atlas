@@ -14,6 +14,9 @@ use crate::log::{Entry, EventLog};
 use crate::roads::{Leg, Network};
 use crate::scenario::{parse_hhmm, Scenario, DEFAULT_DURATION_MIN};
 
+/// Seconds a unit waits at its destination for the confirmation before its work starts.
+pub const CONFIRM_S: u64 = 60;
+
 /// Default travel speed in km/h by unit type. Zero means the unit cannot move.
 pub fn default_speed_kmh(kind: &str) -> f64 {
     match kind {
@@ -27,8 +30,10 @@ pub fn default_speed_kmh(kind: &str) -> f64 {
 enum Kind {
     /// Scheduled start time reached: try to start the task.
     Gate,
-    /// Travel finished: the unit has arrived and the work begins.
+    /// Travel finished: the unit has arrived and holds for confirmation.
     Arrive,
+    /// Confirmation received: the work begins.
+    Confirm,
     /// Work finished: complete the task.
     Finish,
 }
@@ -45,6 +50,7 @@ struct Event {
 pub enum State {
     Pending,
     Moving,
+    Arrived,
     Active,
     Complete,
 }
@@ -195,7 +201,13 @@ impl Engine {
             Kind::Gate => self.try_start(ev.task),
             Kind::Arrive => {
                 let id = self.tasks[ev.task].id.clone();
+                self.tasks[ev.task].state = State::Arrived;
                 self.log.push(self.now, "arrived", &id);
+                self.schedule(self.now + CONFIRM_S, Kind::Confirm, ev.task);
+            }
+            Kind::Confirm => {
+                let id = self.tasks[ev.task].id.clone();
+                self.log.push(self.now, "confirmed", &id);
                 self.begin_work(ev.task);
             }
             Kind::Finish => {
@@ -247,6 +259,7 @@ impl Engine {
                     state: match t.state {
                         State::Pending => "pending",
                         State::Moving => "moving",
+                        State::Arrived => "arrived",
                         State::Active => "active",
                         State::Complete => "complete",
                     },
@@ -256,6 +269,7 @@ impl Engine {
                     departed_s: t.departed_s,
                     arrive_s: t.departed_s.filter(|_| t.moves).map(|d| d + t.travel_s),
                     route: t.moves.then(|| t.route.clone()),
+                    arrived: t.moves && t.travel_s > 0 && t.departed_s.is_some() && t.state != State::Pending && t.state != State::Moving,
                 })
                 .collect(),
             log: self.log.entries.clone(),
@@ -330,6 +344,8 @@ pub struct TaskView {
     pub departed_s: Option<u64>,
     pub arrive_s: Option<u64>,
     pub route: Option<Vec<RoutePoint>>,
+    /// True once a moving unit has reached its destination (it stays there).
+    pub arrived: bool,
 }
 
 /// Times a route at the unit's speed. Returns the timed points and the total seconds.

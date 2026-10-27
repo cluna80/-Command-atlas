@@ -149,7 +149,7 @@ const MOVE: &str = r#"{
 #[test]
 fn off_road_travel_is_slower_than_on_foot_speed() {
     // No roads: 1000 m off-road at 4 km/h x 0.5 = 2 km/h = 0.556 m/s, so 1800 s.
-    // Departs 08:00, arrives 08:30, works 10 minutes, completes 08:40.
+    // Departs 08:00, arrives 08:30, confirmed 60 s later, works 10 minutes, completes 08:41.
     let mut e = Engine::new(&scenario(MOVE), 12 * 3600).unwrap();
     e.run_to_end();
     let team: Vec<(u64, &str)> = e
@@ -164,8 +164,9 @@ fn off_road_travel_is_slower_than_on_foot_speed() {
         vec![
             (8 * 3600, "departed"),
             (8 * 3600 + 1800, "arrived"),
-            (8 * 3600 + 1800, "started"),
-            (8 * 3600 + 1800 + 600, "completed"),
+            (8 * 3600 + 1800 + 60, "confirmed"),
+            (8 * 3600 + 1800 + 60, "started"),
+            (8 * 3600 + 1800 + 60 + 600, "completed"),
         ]
     );
 }
@@ -263,4 +264,22 @@ fn a_task_that_moves_reports_its_route_in_the_snapshot() {
     assert_eq!((route[0].x, route[0].y), (0.0, 0.0));
     let end = route.last().unwrap();
     assert_eq!((end.x, end.y), (1000.0, 0.0));
+}
+
+#[test]
+fn unit_holds_at_destination_until_confirmed() {
+    let mut e = Engine::new(&scenario(ROAD_MOVE), 12 * 3600).unwrap();
+    // Arrives at 08:16:40 (1000 s at 1 m/s); confirmation is 60 s later.
+    e.advance_to(8 * 3600 + 1000 + 30);
+    let snap = e.snapshot();
+    let team = snap.tasks.iter().find(|t| t.id == "team").unwrap();
+    assert_eq!(team.state, "arrived");
+    assert!(team.arrived);
+    assert!(snap.log.iter().any(|x| x.event == "arrived"));
+    assert!(!snap.log.iter().any(|x| x.event == "started" && x.task_id == "team"));
+    e.advance_to(8 * 3600 + 1000 + 60);
+    let snap = e.snapshot();
+    let team = snap.tasks.iter().find(|t| t.id == "team").unwrap();
+    assert_eq!(team.state, "active");
+    assert!(snap.log.iter().any(|x| x.event == "confirmed"));
 }
