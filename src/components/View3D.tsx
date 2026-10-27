@@ -112,10 +112,10 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
     // Unit beacon: a bright core, a breathing halo, and a ring that pulses out along the ground.
     const beacon = new THREE.Group();
     const core = new THREE.Mesh(
-      new THREE.CylinderGeometry(W * 0.005, W * 0.005, W * 0.03, 16),
-      new THREE.MeshStandardMaterial({ color: 0x2f7df6, emissive: 0x1d4fb8, emissiveIntensity: 1.2 }),
+      new THREE.SphereGeometry(W * 0.0055, 20, 14),
+      new THREE.MeshStandardMaterial({ color: 0x2f7df6, emissive: 0x1d4fb8, emissiveIntensity: 1.4 }),
     );
-    core.position.y = W * 0.015;
+    core.position.y = W * 0.02;
     const halo = new THREE.Mesh(
       new THREE.SphereGeometry(W * 0.009, 24, 16),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25, depthWrite: false }),
@@ -154,6 +154,7 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
       const period = t?.state === 'moving' || t?.state === 'active' ? 1.6 : 2.6;
       const phase = (Math.sin((performance.now() / 1000) * (2 * Math.PI / period)) + 1) / 2;
       halo.scale.setScalar(0.85 + 0.45 * phase);
+      core.scale.setScalar(0.9 + 0.2 * phase);
       (halo.material as THREE.MeshBasicMaterial).opacity = 0.05 + 0.18 * phase;
       const ringPhase = (performance.now() / 1000 / period) % 1;
       ring.scale.setScalar(1 + ringPhase * 3);
