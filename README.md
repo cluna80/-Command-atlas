@@ -1,5 +1,22 @@
 # Command Atlas
 
+Desktop app: React interface (`src/`) over a Rust simulation engine (`engine/`), shipped with Tauri (`src-tauri/`).
+
+## Run the desktop app
+
+Requires Node.js 18+, Rust (stable), and on Windows the WebView2 runtime (already installed on Windows 10/11).
+
+```
+npm install
+npm run tauri dev
+```
+
+The window runs the real engine: Run advances the exercise clock in real time, Pause stops it, Step processes one event, and the speed selector scales simulated time.
+
+The app icon in `src-tauri/icons/icon.png` is a placeholder. Replace it and run `npx tauri icon path/to/logo.png` before packaging.
+
+Plain `npm run dev` opens the interface in a browser, but the simulation only runs in the desktop app.
+
 Browser-based, top-down 2D exercise simulation for contractor training teams. Fictional scenarios only; training and exercise management. See the product roadmap baseline v0.1.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the product roadmap baseline (v0.1) and phase exit criteria.

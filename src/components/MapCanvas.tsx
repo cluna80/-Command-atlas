@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NodeKind, Scenario } from '../model/types';
 import { NODE_SIZE } from '../model/scenario';
 import { renderTerrain } from '../map/terrain';
+import type { TaskView } from '../sim/bridge';
 import { LayersIcon, LocateIcon } from './icons';
 
 export interface View {
@@ -15,6 +16,7 @@ interface Props {
   selectedId: string | null;
   view: View;
   fitToken: number; // bump to re-centre on the field
+  tasks: TaskView[]; // engine task states; empty before a run
   onViewChange: (v: View) => void;
   onSelect: (id: string | null) => void;
   onMoveNode: (id: string, x: number, y: number) => void;
@@ -28,6 +30,7 @@ const COLORS: Record<NodeKind, string> = {
   medical: '#f4f6fa',
   communications: '#a78bfa',
 };
+const STATE_LABEL: Record<TaskView['state'], string> = { pending: 'waiting', active: 'active', complete: 'done' };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -47,7 +50,7 @@ export function clampView(v: View, w: number, h: number, MW: number, MH: number)
   };
 }
 
-export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, onSelect, onMoveNode }: Props) {
+export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, onViewChange, onSelect, onMoveNode }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -75,8 +78,10 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, 
   }, [imageSrc]);
   const terrain: CanvasImageSource | null = imageSrc ? uploaded : generated;
 
-  const propsRef = useRef({ scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain });
-  propsRef.current = { scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain };
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+
+  const propsRef = useRef({ scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById });
+  propsRef.current = { scenario, selectedId, view, onViewChange, onSelect, onMoveNode, terrain, taskById };
   const drag = useRef<null | { mode: 'pan' | 'node'; id?: string; sx: number; sy: number; ox: number; oy: number }>(null);
 
   const size = () => {
@@ -105,7 +110,7 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, 
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
-    const { scenario: s, selectedId: sel, view: v, terrain: base } = propsRef.current;
+    const { scenario: s, selectedId: sel, view: v, terrain: base, taskById: states } = propsRef.current;
     const dpr = window.devicePixelRatio || 1;
     const w = wrap.clientWidth;
     const h = wrap.clientHeight;
@@ -154,11 +159,23 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, 
 
     const half = NODE_SIZE / 2;
     for (const n of s.nodes) {
+      const st = states.get(n.id)?.state;
       const x0 = n.x - half;
       const y0 = n.y - half;
+      ctx.globalAlpha = st === 'pending' ? 0.5 : 1;
       ctx.fillStyle = COLORS[n.kind];
       ctx.fillRect(x0, y0, NODE_SIZE, NODE_SIZE);
-      ctx.strokeStyle = n.id === sel ? '#38bdf8' : 'rgba(0,0,0,0.55)';
+      if (st === 'complete') {
+        ctx.fillStyle = 'rgba(34,197,94,0.45)';
+        ctx.fillRect(x0, y0, NODE_SIZE, NODE_SIZE);
+      }
+      ctx.globalAlpha = 1;
+      if (st === 'active') {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 6 / v.zoom;
+        ctx.strokeRect(x0 - 3 / v.zoom, y0 - 3 / v.zoom, NODE_SIZE + 6 / v.zoom, NODE_SIZE + 6 / v.zoom);
+      }
+      ctx.strokeStyle = n.id === sel ? '#38bdf8' : st === 'complete' ? '#22c55e' : 'rgba(0,0,0,0.55)';
       ctx.lineWidth = (n.id === sel ? 4 : 2) / v.zoom;
       ctx.strokeRect(x0, y0, NODE_SIZE, NODE_SIZE);
     }
@@ -167,6 +184,7 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.textAlign = 'center';
     for (const n of s.nodes) {
+      const st = states.get(n.id)?.state;
       const cx = n.x * v.zoom + v.panX;
       const cy = n.y * v.zoom + v.panY;
       const sh = (NODE_SIZE * v.zoom) / 2;
@@ -175,6 +193,11 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, 
       ctx.font = 'bold 16px Inter, system-ui, sans-serif';
       ctx.textBaseline = 'middle';
       ctx.fillText(n.kind === 'medical' ? '+' : n.kind.charAt(0).toUpperCase(), cx, cy);
+      if (st === 'complete') {
+        ctx.fillStyle = '#22c55e';
+        ctx.font = 'bold 14px Inter, system-ui, sans-serif';
+        ctx.fillText('✓', cx - sh + 9, cy - sh + 9);
+      }
 
       ctx.fillStyle = '#0a1322';
       ctx.beginPath();
@@ -186,12 +209,13 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, onViewChange, 
 
       ctx.font = '12px Inter, system-ui, sans-serif';
       ctx.textBaseline = 'top';
-      const tw = ctx.measureText(n.name).width + 12;
+      const label = st ? `${n.name} · ${STATE_LABEL[st]}` : n.name;
+      const tw = ctx.measureText(label).width + 12;
       const ly = cy + sh + 5;
       ctx.fillStyle = 'rgba(10,19,34,0.9)';
       ctx.fillRect(cx - tw / 2, ly, tw, 20);
-      ctx.fillStyle = '#e6edf7';
-      ctx.fillText(n.name, cx, ly + 4);
+      ctx.fillStyle = st === 'active' ? '#7dd3fc' : st === 'complete' ? '#86efac' : '#e6edf7';
+      ctx.fillText(label, cx, ly + 4);
     }
   };
 

@@ -15,6 +15,7 @@ interface Draft {
   role: string;
   status: Status;
   start: string;
+  durationMin: string;
   objective: string;
   prerequisites: string;
   resourceRequirements: string;
@@ -31,6 +32,7 @@ function toDraft(n: ExerciseNode): Draft {
     role: a.role,
     status: a.status ?? 'Ready',
     start: a.start,
+    durationMin: a.durationMin === undefined ? '' : String(a.durationMin),
     objective: a.objective,
     prerequisites: a.prerequisites,
     resourceRequirements: a.resourceRequirements,
@@ -50,6 +52,7 @@ function fromDraft(n: ExerciseNode, d: Draft): ExerciseNode {
       role: d.role,
       status: d.status,
       start: d.start,
+      durationMin: d.durationMin.trim() === '' ? undefined : Number(d.durationMin),
       objective: d.objective,
       prerequisites: d.prerequisites,
       resourceRequirements: d.resourceRequirements,
@@ -141,6 +144,14 @@ export function Inspector({ node, scenario, onApply, onDelete, onDuplicate, onAd
               <input className={`field ${errors.start ? 'bad' : ''}`} value={draft.start}
                 onChange={(e) => set('start', e.target.value)} />
               {errors.start && <div className="fieldError">{errors.start}</div>}
+            </div>
+          </div>
+          <div className="row">
+            <label>Duration</label>
+            <div>
+              <input className={`field ${errors.duration ? 'bad' : ''}`} type="number" min={1} max={1440}
+                placeholder="30 min" value={draft.durationMin} onChange={(e) => set('durationMin', e.target.value)} />
+              {errors.duration && <div className="fieldError">{errors.duration}</div>}
             </div>
           </div>
           <div className="row">

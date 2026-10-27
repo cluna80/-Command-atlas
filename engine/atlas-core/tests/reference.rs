@@ -67,7 +67,9 @@ fn clock_only_moves_when_stepped() {
     // Pausing is simply not calling step(), so the clock must not move between calls.
     let s = scenario(CHAIN);
     let mut e = Engine::new(&s, 12 * 3600).unwrap();
-    assert_eq!(e.now(), 0);
+    // The clock starts at the earliest scheduled start (08:00 here).
+    assert_eq!(e.now(), 8 * 3600);
+    assert_eq!(e.origin(), 8 * 3600);
     assert!(e.log().entries.is_empty());
     assert!(e.step());
     assert_eq!(e.now(), 8 * 3600);
@@ -103,4 +105,32 @@ fn bad_start_time_is_rejected() {
     );
     let err = Engine::new(&scenario(&bad), 3600).unwrap_err();
     assert!(err.contains("alpha"), "error was: {err}");
+}
+
+#[test]
+fn advance_to_processes_only_events_due_by_then() {
+    let s = scenario(CHAIN);
+    let mut e = Engine::new(&s, 12 * 3600).unwrap();
+    // 08:10: supply has started, nothing has finished.
+    e.advance_to(8 * 3600 + 10 * 60);
+    assert_eq!(e.now(), 8 * 3600 + 10 * 60);
+    let snap = e.snapshot();
+    assert_eq!(snap.tasks[0].state, "active");
+    assert_eq!(snap.tasks[1].state, "pending");
+    assert_eq!(snap.log.len(), 1);
+    // 08:45: supply done, alpha running.
+    e.advance_to(8 * 3600 + 45 * 60);
+    let snap = e.snapshot();
+    assert_eq!(snap.tasks[0].state, "complete");
+    assert_eq!(snap.tasks[1].state, "active");
+    assert_eq!(snap.tasks[1].started_s, Some(8 * 3600 + 30 * 60));
+}
+
+#[test]
+fn advance_to_never_passes_the_horizon() {
+    let s = scenario(CHAIN);
+    let mut e = Engine::new(&s, 8 * 3600 + 20 * 60).unwrap();
+    e.advance_to(99 * 3600);
+    assert_eq!(e.now(), 8 * 3600 + 20 * 60);
+    assert!(e.snapshot().finished);
 }

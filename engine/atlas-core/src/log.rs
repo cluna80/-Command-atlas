@@ -1,6 +1,8 @@
 //! Append-only event log with a stable fingerprint for determinism checks.
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Entry {
     /// Exercise time in seconds since the start of the exercise clock.
     pub t_s: u64,

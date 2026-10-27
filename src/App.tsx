@@ -4,6 +4,7 @@ import { Inspector } from './components/Inspector';
 import { TopBar } from './components/TopBar';
 import { AssetLibrary } from './components/AssetLibrary';
 import { BottomBar } from './components/BottomBar';
+import { useSimulation } from './sim/useSimulation';
 import {
   NODE_SIZE,
   createNode,
@@ -33,6 +34,7 @@ export default function App() {
   const [notice, setNotice] = useState<{ title: string; issues: ValidationIssue[] } | null>(null);
 
   const issues = useMemo(() => validateScenario(scenario), [scenario]);
+  const sim = useSimulation(scenario);
   const selected = scenario.nodes.find((n) => n.id === selectedId) ?? null;
   const resetView = () => setFitToken((t) => t + 1);
 
@@ -188,6 +190,7 @@ export default function App() {
           selectedId={selectedId}
           view={view}
           fitToken={fitToken}
+          tasks={sim.snap?.tasks ?? []}
           onViewChange={setView}
           onSelect={setSelectedId}
           onMoveNode={(id, x, y) => updateNode(id, { x, y })}
@@ -222,7 +225,18 @@ export default function App() {
         )}
       </aside>
 
-      <BottomBar />
+      <BottomBar
+        snap={sim.snap}
+        running={sim.running}
+        speed={sim.speed}
+        onSpeed={sim.setSpeed}
+        onRun={sim.run}
+        onPause={sim.pause}
+        onStep={sim.step}
+        error={sim.error}
+        stale={sim.stale}
+        desktop={sim.desktop}
+      />
     </div>
   );
 }

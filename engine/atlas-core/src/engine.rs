@@ -7,7 +7,9 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
-use crate::log::EventLog;
+use serde::Serialize;
+
+use crate::log::{Entry, EventLog};
 use crate::scenario::{parse_hhmm, Scenario, DEFAULT_DURATION_MIN};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -26,6 +28,26 @@ struct Event {
     task: usize,
 }
 
+/// Serialisable snapshot of a run.
+#[derive(Debug, Clone, Serialize)]
+pub struct Snapshot {
+    pub now_s: u64,
+    pub origin_s: u64,
+    pub finished: bool,
+    pub tasks: Vec<TaskView>,
+    pub log: Vec<Entry>,
+}
+
+/// One task as the user interface sees it.
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskView {
+    pub id: String,
+    pub state: &'static str,
+    pub start_s: u64,
+    pub started_s: Option<u64>,
+    pub finished_s: Option<u64>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
     Pending,
@@ -39,6 +61,8 @@ pub struct Task {
     pub start_s: u64,
     pub duration_s: u64,
     pub state: State,
+    pub started_s: Option<u64>,
+    pub finished_s: Option<u64>,
     prereqs: Vec<usize>,
     successors: Vec<usize>,
 }
@@ -49,6 +73,7 @@ pub struct Engine {
     queue: BinaryHeap<Reverse<Event>>,
     seq: u64,
     now: u64,
+    origin: u64,
     horizon: u64,
     log: EventLog,
 }
@@ -70,6 +95,8 @@ impl Engine {
                 start_s,
                 duration_s: duration_min * 60,
                 state: State::Pending,
+                started_s: None,
+                finished_s: None,
                 prereqs: Vec::new(),
                 successors: Vec::new(),
             });
@@ -89,11 +116,14 @@ impl Engine {
             tasks[from].successors.push(to);
         }
 
+        // The exercise clock starts at the earliest scheduled start, so the run is not idle.
+        let origin = tasks.iter().map(|t| t.start_s).min().unwrap_or(0);
         let mut engine = Engine {
             tasks,
             queue: BinaryHeap::new(),
             seq: 0,
-            now: 0,
+            now: origin,
+            origin,
             horizon: horizon_s,
             log: EventLog::default(),
         };
@@ -107,6 +137,11 @@ impl Engine {
     /// Current exercise time in seconds.
     pub fn now(&self) -> u64 {
         self.now
+    }
+
+    /// Exercise time at which the run starts (earliest scheduled start).
+    pub fn origin(&self) -> u64 {
+        self.origin
     }
 
     pub fn tasks(&self) -> &[Task] {
@@ -135,6 +170,7 @@ impl Engine {
             Kind::Finish => {
                 let task = &mut self.tasks[ev.task];
                 task.state = State::Complete;
+                task.finished_s = Some(self.now);
                 let id = task.id.clone();
                 let successors = task.successors.clone();
                 self.log.push(self.now, "completed", &id);
@@ -144,6 +180,51 @@ impl Engine {
             }
         }
         true
+    }
+
+    /// Time of the next queued event, if any.
+    pub fn next_event_time(&self) -> Option<u64> {
+        self.queue.peek().map(|Reverse(e)| e.time)
+    }
+
+    /// Processes every event due by `t_s` (capped at the horizon), then moves the clock there.
+    /// Calling this is how real time drives the simulation: the caller decides how much
+    /// simulated time to allow, so pausing is simply not calling it.
+    pub fn advance_to(&mut self, t_s: u64) {
+        let target = t_s.min(self.horizon);
+        while let Some(next) = self.next_event_time() {
+            if next > target || !self.step() {
+                break;
+            }
+        }
+        if target > self.now {
+            self.now = target;
+        }
+    }
+
+    /// A serialisable view of the whole run, for the user interface.
+    pub fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            now_s: self.now,
+            origin_s: self.origin,
+            finished: self.finished(),
+            tasks: self
+                .tasks
+                .iter()
+                .map(|t| TaskView {
+                    id: t.id.clone(),
+                    state: match t.state {
+                        State::Pending => "pending",
+                        State::Active => "active",
+                        State::Complete => "complete",
+                    },
+                    start_s: t.start_s,
+                    started_s: t.started_s,
+                    finished_s: t.finished_s,
+                })
+                .collect(),
+            log: self.log.entries.clone(),
+        }
     }
 
     /// Runs until the exercise finishes.
@@ -165,6 +246,7 @@ impl Engine {
         let (id, duration) = {
             let t = &mut self.tasks[idx];
             t.state = State::Active;
+            t.started_s = Some(now);
             (t.id.clone(), t.duration_s)
         };
         self.log.push(now, "started", &id);

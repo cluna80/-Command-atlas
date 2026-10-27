@@ -8,6 +8,6 @@ pub mod engine;
 pub mod log;
 pub mod scenario;
 
-pub use engine::{Engine, State, Task};
+pub use engine::{Engine, Snapshot, State, Task, TaskView};
 pub use log::{Entry, EventLog};
 pub use scenario::{parse_hhmm, Scenario};

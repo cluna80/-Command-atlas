@@ -19,6 +19,7 @@ export interface Assignment {
   role: string;
   start: string; // 24-hour HH:MM, exercise clock
   status?: Status; // defaults to Ready when absent
+  durationMin?: number; // task length; the engine uses 30 when absent
   prerequisites: string;
   resourceRequirements: string;
   completionCriteria: string;
