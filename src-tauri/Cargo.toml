@@ -19,3 +19,10 @@ serde_json = "1"
 [profile.release]
 codegen-units = 1
 lto = true
+
+# Smaller dev builds: the default full debug info makes the Windows linker run out of memory (LNK1102).
+[profile.dev]
+debug = false
+
+[profile.dev.build-override]
+debug = false
