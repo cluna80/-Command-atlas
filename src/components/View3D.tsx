@@ -21,7 +21,7 @@ const GRID = 140; // terrain resolution
 
 /** Same position logic as the 2D map: along the route while moving. */
 function unitPos(n: { x: number; y: number }, t: TaskView | undefined, now: number) {
-  if (t && t.arrived && t.route && t.route.length > 0 && t.departed_s !== null) {
+  if (t && (t.state === 'moving' || t.arrived) && t.route && t.route.length > 0 && t.departed_s !== null) {
     const r = t.route;
     const e = now - t.departed_s;
     for (let i = 0; i < r.length - 1; i++) {
