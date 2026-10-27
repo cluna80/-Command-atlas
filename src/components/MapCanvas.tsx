@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { NodeKind, Scenario } from '../model/types';
+import type { Scenario } from '../model/types';
 import { NODE_SIZE } from '../model/scenario';
 import { renderTerrain } from '../map/terrain';
+import { drawUnitSymbol } from '../map/symbols';
 import type { TaskView } from '../sim/bridge';
 import { LayersIcon, LocateIcon } from './icons';
 
@@ -22,14 +23,6 @@ interface Props {
   onMoveNode: (id: string, x: number, y: number) => void;
 }
 
-const COLORS: Record<NodeKind, string> = {
-  team: '#2f7df6',
-  personnel: '#60a5fa',
-  transport: '#94a3b8',
-  supply: '#1f3c66',
-  medical: '#f4f6fa',
-  communications: '#a78bfa',
-};
 const STATE_LABEL: Record<TaskView['state'], string> = { pending: 'waiting', active: 'active', complete: 'done' };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -163,10 +156,9 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, onViewC
       const x0 = n.x - half;
       const y0 = n.y - half;
       ctx.globalAlpha = st === 'pending' ? 0.5 : 1;
-      ctx.fillStyle = COLORS[n.kind];
-      ctx.fillRect(x0, y0, NODE_SIZE, NODE_SIZE);
+      drawUnitSymbol(ctx, n.kind, n.x, n.y, NODE_SIZE);
       if (st === 'complete') {
-        ctx.fillStyle = 'rgba(34,197,94,0.45)';
+        ctx.fillStyle = 'rgba(34,197,94,0.3)';
         ctx.fillRect(x0, y0, NODE_SIZE, NODE_SIZE);
       }
       ctx.globalAlpha = 1;
@@ -189,10 +181,6 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, onViewC
       const cy = n.y * v.zoom + v.panY;
       const sh = (NODE_SIZE * v.zoom) / 2;
 
-      ctx.fillStyle = n.kind === 'medical' ? '#c0392b' : '#0a1322';
-      ctx.font = 'bold 16px Inter, system-ui, sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(n.kind === 'medical' ? '+' : n.kind.charAt(0).toUpperCase(), cx, cy);
       if (st === 'complete') {
         ctx.fillStyle = '#22c55e';
         ctx.font = 'bold 14px Inter, system-ui, sans-serif';
