@@ -1,6 +1,7 @@
 // Procedural fictional terrain and map art: relief, biomes, contours, forest, roads,
 // buildings, grid, and named features. Deterministic for a given seed.
 import { fbm, mulberry32, valueNoise } from './noise';
+import type { Road } from './roads';
 
 export interface Field {
   w: number;
@@ -13,7 +14,6 @@ export interface Field {
 
 type RGB = [number, number, number];
 type Stop = [number, RGB];
-type Pt = [number, number];
 
 const RELIEF_M = 380;
 const SCALE = 2; // rendered art is 2 px per map unit
@@ -255,24 +255,16 @@ function drawForest(ctx: CanvasRenderingContext2D, f: Field, W: number, H: numbe
   }
 }
 
-type RoadClass = 'highway' | 'road' | 'track';
-const ROADS: [RoadClass, Pt, Pt, Pt][] = [
-  ['highway', [0, 0.5], [0.35, 0.62], [1, 0.42]],
-  ['road', [0.56, 0.44], [0.5, 0.7], [0.3, 1]],
-  ['road', [0.56, 0.44], [0.72, 0.3], [1, 0.12]],
-  ['track', [0.1, 0], [0.2, 0.4], [0.12, 0.8]],
-  ['track', [0.8, 1], [0.7, 0.7], [0.92, 0.55]],
-];
-
-function drawRoads(ctx: CanvasRenderingContext2D, W: number, H: number, riverX: (fy: number) => number) {
-  for (const [cls, p0, c, p1] of ROADS) {
+function drawRoads(ctx: CanvasRenderingContext2D, roads: Road[], W: number, H: number, riverX: (fy: number) => number) {
+  for (const road of roads) {
+    if (road.points.length < 2) continue;
     const path = () => {
       ctx.beginPath();
-      ctx.moveTo(p0[0] * W, p0[1] * H);
-      ctx.quadraticCurveTo(c[0] * W, c[1] * H, p1[0] * W, p1[1] * H);
+      road.points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
     };
     ctx.lineCap = 'round';
-    if (cls === 'track') {
+    ctx.lineJoin = 'round';
+    if (road.class === 'track') {
       path();
       ctx.strokeStyle = '#8f8160';
       ctx.lineWidth = 2.5;
@@ -281,28 +273,32 @@ function drawRoads(ctx: CanvasRenderingContext2D, W: number, H: number, riverX: 
       ctx.setLineDash([]);
       continue;
     }
-    const outer = cls === 'highway' ? 11 : 8;
-    const inner = cls === 'highway' ? 7 : 5;
+    const highway = road.class === 'highway';
     path();
     ctx.strokeStyle = '#3b3428';
-    ctx.lineWidth = outer;
+    ctx.lineWidth = highway ? 11 : 8;
     ctx.stroke();
     path();
-    ctx.strokeStyle = cls === 'highway' ? '#e3d8b4' : '#d4c9a6';
-    ctx.lineWidth = inner;
+    ctx.strokeStyle = highway ? '#e3d8b4' : '#d4c9a6';
+    ctx.lineWidth = highway ? 7 : 5;
     ctx.stroke();
 
-    // Bridge where the road meets the river.
-    for (let t = 0; t <= 1; t += 0.002) {
-      const x = (1 - t) * (1 - t) * p0[0] + 2 * (1 - t) * t * c[0] + t * t * p1[0];
-      const y = (1 - t) * (1 - t) * p0[1] + 2 * (1 - t) * t * c[1] + t * t * p1[1];
-      if (Math.abs(x - riverX(y)) < RIVER_HALF) {
-        ctx.fillStyle = '#7d7360';
-        ctx.fillRect(x * W - 9, y * H - 5, 18, 10);
-        ctx.strokeStyle = '#2b251c';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x * W - 9, y * H - 5, 18, 10);
-        break;
+    // Bridge where the road crosses the river.
+    let bridged = false;
+    for (let i = 0; i < road.points.length - 1 && !bridged; i++) {
+      const [ax, ay] = road.points[i];
+      const [bx, by] = road.points[i + 1];
+      for (let t = 0; t <= 1 && !bridged; t += 0.05) {
+        const x = ax + (bx - ax) * t;
+        const y = ay + (by - ay) * t;
+        if (Math.abs(x / W - riverX(y / H)) < RIVER_HALF) {
+          ctx.fillStyle = '#7d7360';
+          ctx.fillRect(x - 9, y - 5, 18, 10);
+          ctx.strokeStyle = '#2b251c';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x - 9, y - 5, 18, 10);
+          bridged = true;
+        }
       }
     }
   }
@@ -425,7 +421,7 @@ function drawNames(ctx: CanvasRenderingContext2D, f: Field, W: number, H: number
 }
 
 /** Renders the full map art (in map units, scaled by SCALE). */
-export function renderTerrain(worldW: number, worldH: number, seed: number): HTMLCanvasElement {
+export function renderTerrain(worldW: number, worldH: number, seed: number, roads: Road[]): HTMLCanvasElement {
   const w = Math.max(16, Math.round(worldW / 2));
   const h = Math.max(16, Math.round(worldH / 2));
   const field = generateField(w, h, seed);
@@ -449,7 +445,7 @@ export function renderTerrain(worldW: number, worldH: number, seed: number): HTM
 
   drawGrid(ctx, worldW, worldH);
   drawForest(ctx, field, worldW, worldH, seed);
-  drawRoads(ctx, worldW, worldH, riverX);
+  drawRoads(ctx, roads, worldW, worldH, riverX);
   drawTown(ctx, field, worldW, worldH, seed);
   drawNames(ctx, field, worldW, worldH, seed, riverX);
 

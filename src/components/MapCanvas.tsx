@@ -3,6 +3,7 @@ import type { Scenario } from '../model/types';
 import { NODE_SIZE } from '../model/scenario';
 import { renderTerrain } from '../map/terrain';
 import { drawUnitSymbol } from '../map/symbols';
+import { effectiveRoads } from '../map/roads';
 import type { TaskView } from '../sim/bridge';
 import { LayersIcon, LocateIcon } from './icons';
 
@@ -26,12 +27,20 @@ interface Props {
 
 const STATE_LABEL: Record<TaskView['state'], string> = { pending: 'waiting', moving: 'moving', active: 'active', complete: 'done' };
 
-/** Where a unit is drawn: interpolated along its route while moving, otherwise its node position. */
+/** Where a unit is drawn: along its route while moving, otherwise at its node. */
 function unitPos(n: { x: number; y: number }, t: TaskView | undefined, now: number): { x: number; y: number } {
-  if (t?.state === 'moving' && t.from && t.to && t.departed_s !== null && t.arrive_s !== null) {
-    const span = t.arrive_s - t.departed_s;
-    const p = span > 0 ? clamp((now - t.departed_s) / span, 0, 1) : 1;
-    return { x: t.from[0] + (t.to[0] - t.from[0]) * p, y: t.from[1] + (t.to[1] - t.from[1]) * p };
+  if (t?.state === 'moving' && t.route && t.route.length > 0 && t.departed_s !== null) {
+    const r = t.route;
+    const elapsed = now - t.departed_s;
+    if (elapsed <= r[0].t) return { x: r[0].x, y: r[0].y };
+    for (let i = 0; i < r.length - 1; i++) {
+      if (elapsed <= r[i + 1].t) {
+        const span = r[i + 1].t - r[i].t;
+        const p = span > 0 ? (elapsed - r[i].t) / span : 1;
+        return { x: r[i].x + (r[i + 1].x - r[i].x) * p, y: r[i].y + (r[i + 1].y - r[i].y) * p };
+      }
+    }
+    return { x: r[r.length - 1].x, y: r[r.length - 1].y };
   }
   return { x: n.x, y: n.y };
 }
@@ -58,12 +67,13 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, o
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
+  const roads = useMemo(() => effectiveRoads(scenario), [scenario.map.width, scenario.map.height, scenario.roads]);
   const generated = useMemo(
     () =>
       scenario.terrain?.image
         ? null
-        : renderTerrain(scenario.map.width, scenario.map.height, scenario.terrain?.seed ?? 1),
-    [scenario.map.width, scenario.map.height, scenario.terrain?.seed, scenario.terrain?.image],
+        : renderTerrain(scenario.map.width, scenario.map.height, scenario.terrain?.seed ?? 1, roads),
+    [scenario.map.width, scenario.map.height, scenario.terrain?.seed, scenario.terrain?.image, roads],
   );
   const imageSrc = scenario.terrain?.image;
   const [uploaded, setUploaded] = useState<HTMLImageElement | null>(null);
@@ -163,18 +173,20 @@ export function MapCanvas({ scenario, selectedId, view, fitToken, tasks, nowS, o
 
     // Routes for units on the move
     for (const t of states.values()) {
-      if (t.state !== 'moving' || !t.from || !t.to) continue;
+      if (t.state !== 'moving' || !t.route || t.route.length < 2) continue;
+      const r = t.route;
       ctx.setLineDash([12 / v.zoom, 9 / v.zoom]);
       ctx.strokeStyle = '#7dd3fc';
       ctx.lineWidth = 3 / v.zoom;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(t.from[0], t.from[1]);
-      ctx.lineTo(t.to[0], t.to[1]);
+      r.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
       ctx.stroke();
       ctx.setLineDash([]);
+      const end = r[r.length - 1];
       ctx.fillStyle = 'rgba(125,211,252,0.9)';
       ctx.beginPath();
-      ctx.arc(t.to[0], t.to[1], 7 / v.zoom, 0, Math.PI * 2);
+      ctx.arc(end.x, end.y, 7 / v.zoom, 0, Math.PI * 2);
       ctx.fill();
     }
 

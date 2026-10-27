@@ -1,8 +1,8 @@
 //! Discrete-event engine.
 //!
 //! A task starts when its scheduled start time has arrived and every prerequisite has
-//! completed. If the task has a destination, its unit first travels there (distance
-//! times a detour factor, at the unit's speed), then the work runs for its duration.
+//! completed. If the task has a destination, its unit first travels there along the road
+//! network (off-road where needed), then the work runs for its duration.
 //! Events are ordered by (time, sequence number), so ties always resolve the same way.
 
 use std::cmp::Reverse;
@@ -11,10 +11,8 @@ use std::collections::{BinaryHeap, HashMap};
 use serde::Serialize;
 
 use crate::log::{Entry, EventLog};
+use crate::roads::{Leg, Network};
 use crate::scenario::{parse_hhmm, Scenario, DEFAULT_DURATION_MIN};
-
-/// Straight-line distance is multiplied by this to approximate the route length.
-pub const DETOUR_FACTOR: f64 = 1.3;
 
 /// Default travel speed in km/h by unit type. Zero means the unit cannot move.
 pub fn default_speed_kmh(kind: &str) -> f64 {
@@ -51,6 +49,14 @@ pub enum State {
     Complete,
 }
 
+/// A point on a travel route, with the seconds elapsed since departure when the unit is there.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct RoutePoint {
+    pub x: f64,
+    pub y: f64,
+    pub t: f64,
+}
+
 #[derive(Debug, Clone)]
 pub struct Task {
     pub id: String,
@@ -62,8 +68,7 @@ pub struct Task {
     pub departed_s: Option<u64>,
     pub moves: bool,
     pub travel_s: u64,
-    pub from: (f64, f64),
-    pub to: (f64, f64),
+    pub route: Vec<RoutePoint>,
     prereqs: Vec<usize>,
     successors: Vec<usize>,
 }
@@ -101,31 +106,26 @@ impl Engine {
                 departed_s: None,
                 moves: node.assignment.destination_id.is_some(),
                 travel_s: 0,
-                from: (node.x, node.y),
-                to: (node.x, node.y),
+                route: Vec::new(),
                 prereqs: Vec::new(),
                 successors: Vec::new(),
             });
         }
 
-        // Travel times, from positions and unit speeds.
+        // Routes along the road network, timed from unit speeds.
+        let network = Network::build(&scenario.roads);
         for (i, node) in scenario.nodes.iter().enumerate() {
             let Some(dest_id) = &node.assignment.destination_id else { continue };
             let d = *index
                 .get(dest_id.as_str())
                 .ok_or_else(|| format!("node '{}' moves to missing node '{}'", node.id, dest_id))?;
             let dest = &scenario.nodes[d];
-            let dist_m = (dest.x - node.x).hypot(dest.y - node.y) * DETOUR_FACTOR;
+            let leg = network.route([node.x, node.y], [dest.x, dest.y]);
             let speed = node.speed_kmh.unwrap_or_else(|| default_speed_kmh(&node.kind));
-            let travel_s = if dist_m == 0.0 {
-                0
-            } else if speed <= 0.0 {
-                return Err(format!("node '{}' has no speed but must travel to '{}'", node.id, dest_id));
-            } else {
-                (dist_m / (speed * 1000.0 / 3600.0)).round() as u64
-            };
-            tasks[i].to = (dest.x, dest.y);
-            tasks[i].travel_s = travel_s;
+            let (route, total_s) = time_route(&leg, speed)
+                .map_err(|e| format!("node '{}' {e} to '{}'", node.id, dest_id))?;
+            tasks[i].travel_s = total_s.round() as u64;
+            tasks[i].route = route;
         }
 
         for dep in &scenario.dependencies {
@@ -255,8 +255,7 @@ impl Engine {
                     finished_s: t.finished_s,
                     departed_s: t.departed_s,
                     arrive_s: t.departed_s.filter(|_| t.moves).map(|d| d + t.travel_s),
-                    from: t.moves.then_some([t.from.0, t.from.1]),
-                    to: t.moves.then_some([t.to.0, t.to.1]),
+                    route: t.moves.then(|| t.route.clone()),
                 })
                 .collect(),
             log: self.log.entries.clone(),
@@ -330,6 +329,24 @@ pub struct TaskView {
     pub finished_s: Option<u64>,
     pub departed_s: Option<u64>,
     pub arrive_s: Option<u64>,
-    pub from: Option<[f64; 2]>,
-    pub to: Option<[f64; 2]>,
+    pub route: Option<Vec<RoutePoint>>,
+}
+
+/// Times a route at the unit's speed. Returns the timed points and the total seconds.
+fn time_route(leg: &Leg, speed_kmh: f64) -> Result<(Vec<RoutePoint>, f64), String> {
+    let mut points = Vec::with_capacity(leg.points.len());
+    let mut t = 0.0;
+    points.push(RoutePoint { x: leg.points[0][0], y: leg.points[0][1], t });
+    for (i, w) in leg.points.windows(2).enumerate() {
+        let len = (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]);
+        if len > 0.0 {
+            let speed_mps = speed_kmh * 1000.0 / 3600.0 * leg.factors[i];
+            if speed_mps <= 0.0 {
+                return Err("has no speed but must travel".to_string());
+            }
+            t += len / speed_mps;
+        }
+        points.push(RoutePoint { x: w[1][0], y: w[1][1], t });
+    }
+    Ok((points, t))
 }

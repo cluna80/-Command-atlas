@@ -12,8 +12,14 @@ export interface TaskView {
   finished_s: number | null;
   departed_s: number | null;
   arrive_s: number | null;
-  from: [number, number] | null;
-  to: [number, number] | null;
+  route: RoutePoint[] | null;
+}
+
+/** A point on a travel route; t is seconds since departure. */
+export interface RoutePoint {
+  x: number;
+  y: number;
+  t: number;
 }
 
 export interface LogEntry {

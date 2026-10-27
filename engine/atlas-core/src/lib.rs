@@ -6,6 +6,7 @@
 
 pub mod engine;
 pub mod log;
+pub mod roads;
 pub mod scenario;
 
 pub use engine::{Engine, Snapshot, State, Task, TaskView};

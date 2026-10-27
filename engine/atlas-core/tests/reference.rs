@@ -147,9 +147,9 @@ const MOVE: &str = r#"{
 }"#;
 
 #[test]
-fn travel_time_comes_before_the_work() {
-    // 1000 m straight line x 1.3 detour = 1300 m at 4 km/h (1.111 m/s) = 1170 s.
-    // Departs 08:00, arrives 08:19:30, works 10 minutes, completes 08:29:30.
+fn off_road_travel_is_slower_than_on_foot_speed() {
+    // No roads: 1000 m off-road at 4 km/h x 0.5 = 2 km/h = 0.556 m/s, so 1800 s.
+    // Departs 08:00, arrives 08:30, works 10 minutes, completes 08:40.
     let mut e = Engine::new(&scenario(MOVE), 12 * 3600).unwrap();
     e.run_to_end();
     let team: Vec<(u64, &str)> = e
@@ -163,11 +163,85 @@ fn travel_time_comes_before_the_work() {
         team,
         vec![
             (8 * 3600, "departed"),
-            (8 * 3600 + 1170, "arrived"),
-            (8 * 3600 + 1170, "started"),
-            (8 * 3600 + 1170 + 600, "completed"),
+            (8 * 3600 + 1800, "arrived"),
+            (8 * 3600 + 1800, "started"),
+            (8 * 3600 + 1800 + 600, "completed"),
         ]
     );
+}
+
+const ROAD_MOVE: &str = r#"{
+  "schemaVersion": 1, "name": "road",
+  "roads": [{"id": "r1", "class": "road", "points": [[0, 0], [1000, 0]]}],
+  "nodes": [
+    {"id": "team", "kind": "team", "name": "Team", "x": 0, "y": 0,
+     "assignment": {"start": "08:00", "durationMin": 10, "destinationId": "site"}},
+    {"id": "site", "kind": "supply", "name": "Site", "x": 1000, "y": 0,
+     "assignment": {"start": "00:00", "durationMin": 0}}
+  ],
+  "dependencies": []
+}"#;
+
+#[test]
+fn units_travel_along_roads_at_road_speed() {
+    // On a road: 0.9 factor x 4 km/h = 3.6 km/h = 1 m/s, so 1000 m takes 1000 s.
+    let mut e = Engine::new(&scenario(ROAD_MOVE), 12 * 3600).unwrap();
+    e.run_to_end();
+    let arrived = e.log().entries.iter().find(|x| x.event == "arrived" && x.task_id == "team").unwrap();
+    assert_eq!(arrived.t_s, 8 * 3600 + 1000);
+}
+
+#[test]
+fn route_follows_the_road_network_around_a_corner() {
+    // L-shaped road: east 1000 m, then north 1000 m. Routing from (0,0) to (1000,1000)
+    // must follow both legs (2000 m), not cut across.
+    let json = r#"{
+      "schemaVersion": 1, "name": "corner",
+      "roads": [
+        {"id": "a", "class": "road", "points": [[0, 0], [1000, 0]]},
+        {"id": "b", "class": "road", "points": [[1000, 0], [1000, 1000]]}
+      ],
+      "nodes": [
+        {"id": "team", "kind": "team", "name": "Team", "x": 0, "y": 0,
+         "assignment": {"start": "08:00", "durationMin": 1, "destinationId": "site"}},
+        {"id": "site", "kind": "supply", "name": "Site", "x": 1000, "y": 1000,
+         "assignment": {"start": "00:00", "durationMin": 0}}
+      ],
+      "dependencies": []
+    }"#;
+    let mut e = Engine::new(&scenario(json), 12 * 3600).unwrap();
+    e.advance_to(8 * 3600);
+    let snap = e.snapshot();
+    let route = snap.tasks.iter().find(|t| t.id == "team").unwrap().route.clone().unwrap();
+    assert!(route.iter().any(|p| p.x == 1000.0 && p.y == 0.0), "route must pass the corner");
+    let end = route.last().unwrap();
+    assert_eq!((end.x, end.y), (1000.0, 1000.0));
+    // 2000 m at 3.6 km/h = 2000 s
+    assert!((end.t - 2000.0).abs() < 1e-6, "travel time was {}", end.t);
+}
+
+#[test]
+fn crossing_roads_form_a_junction() {
+    // East-west and north-south roads cross at (500, 0). A unit going from (500,-500)
+    // to (1000,0) must turn at the crossing, so the route passes through (500, 0).
+    let json = r#"{
+      "schemaVersion": 1, "name": "cross",
+      "roads": [
+        {"id": "ew", "class": "road", "points": [[0, 0], [1000, 0]]},
+        {"id": "ns", "class": "road", "points": [[500, -500], [500, 500]]}
+      ],
+      "nodes": [
+        {"id": "team", "kind": "team", "name": "Team", "x": 500, "y": -500,
+         "assignment": {"start": "08:00", "durationMin": 1, "destinationId": "site"}},
+        {"id": "site", "kind": "supply", "name": "Site", "x": 1000, "y": 0,
+         "assignment": {"start": "00:00", "durationMin": 0}}
+      ],
+      "dependencies": []
+    }"#;
+    let mut e = Engine::new(&scenario(json), 12 * 3600).unwrap();
+    e.advance_to(8 * 3600);
+    let route = e.snapshot().tasks.iter().find(|t| t.id == "team").unwrap().route.clone().unwrap();
+    assert!(route.iter().any(|p| (p.x - 500.0).abs() < 1e-6 && p.y.abs() < 1e-6), "route must turn at the crossing");
 }
 
 #[test]
@@ -184,7 +258,9 @@ fn a_task_that_moves_reports_its_route_in_the_snapshot() {
     let snap = e.snapshot();
     let team = snap.tasks.iter().find(|t| t.id == "team").unwrap();
     assert_eq!(team.state, "moving");
-    assert_eq!(team.arrive_s, Some(8 * 3600 + 1170));
-    assert_eq!(team.from, Some([0.0, 0.0]));
-    assert_eq!(team.to, Some([1000.0, 0.0]));
+    assert_eq!(team.arrive_s, Some(8 * 3600 + 1800));
+    let route = team.route.clone().unwrap();
+    assert_eq!((route[0].x, route[0].y), (0.0, 0.0));
+    let end = route.last().unwrap();
+    assert_eq!((end.x, end.y), (1000.0, 0.0));
 }

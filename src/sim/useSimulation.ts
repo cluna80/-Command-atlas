@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Scenario } from '../model/types';
+import { effectiveRoads } from '../map/roads';
 import { isDesktop, simAdvance, simLoad, simStep, type Snapshot } from './bridge';
 
 export const HORIZON_MIN = 24 * 60;
@@ -23,11 +24,12 @@ export function useSimulation(scenario: Scenario) {
   const needsLoad = !snap || stale || snap.finished;
 
   const load = useCallback(async () => {
-    const s = await simLoad(key, HORIZON_MIN);
+    const payload = JSON.stringify({ ...scenario, roads: effectiveRoads(scenario) });
+    const s = await simLoad(payload, HORIZON_MIN);
     setSnap(s);
     setLoadedKey(key);
     return s;
-  }, [key]);
+  }, [key, scenario]);
 
   const fail = (e: unknown) => {
     setError(String(e));

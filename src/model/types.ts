@@ -45,6 +45,8 @@ export interface Dependency {
   toId: string;
 }
 
+import type { Road } from '../map/roads';
+
 export interface Scenario {
   schemaVersion: number;
   name: string;
@@ -52,6 +54,7 @@ export interface Scenario {
   terrain?: { seed: number; image?: string }; // image = uploaded base map as a data URL
   nodes: ExerciseNode[];
   dependencies: Dependency[];
+  roads?: Road[]; // road network in map metres; the default network is used when absent
 }
 
 export interface ValidationIssue {

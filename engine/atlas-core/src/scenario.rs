@@ -3,6 +3,8 @@
 
 use serde::Deserialize;
 
+use crate::roads::Road;
+
 pub const DEFAULT_DURATION_MIN: u64 = 30;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -16,6 +18,9 @@ pub struct Scenario {
     pub nodes: Vec<Node>,
     #[serde(default)]
     pub dependencies: Vec<Dependency>,
+    /// Road network. Units route along these when they can.
+    #[serde(default)]
+    pub roads: Vec<Road>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
