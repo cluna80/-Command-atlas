@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NODE_KINDS, type Dependency, type ExerciseNode, type Scenario, type Status } from '../model/types';
-import { nodeErrors } from '../model/scenario';
+import { defaultSpeedKmh, nodeErrors } from '../model/scenario';
 import { DocIcon } from './icons';
 
 type Tab = 'details' | 'personnel' | 'equipment';
@@ -17,6 +17,7 @@ interface Draft {
   start: string;
   durationMin: string;
   destinationId: string;
+  speedKmh: string;
   objective: string;
   prerequisites: string;
   resourceRequirements: string;
@@ -35,6 +36,7 @@ function toDraft(n: ExerciseNode): Draft {
     start: a.start,
     durationMin: a.durationMin === undefined ? '' : String(a.durationMin),
     destinationId: a.destinationId ?? '',
+    speedKmh: n.speedKmh === undefined ? '' : String(n.speedKmh),
     objective: a.objective,
     prerequisites: a.prerequisites,
     resourceRequirements: a.resourceRequirements,
@@ -46,6 +48,7 @@ function toDraft(n: ExerciseNode): Draft {
 function fromDraft(n: ExerciseNode, d: Draft): ExerciseNode {
   return {
     ...n,
+    speedKmh: d.speedKmh.trim() === '' ? undefined : Number(d.speedKmh),
     name: d.name,
     kind: d.kind,
     personnel: d.personnel.trim() === '' ? NaN : Number(d.personnel),
@@ -172,6 +175,18 @@ export function Inspector({ node, scenario, onApply, onDelete, onDuplicate, onAd
               ))}
             </select>
           </div>
+          {draft.destinationId && (
+            <div className="row">
+              <label>Speed (km/h)</label>
+              <div>
+                <input className={`field ${errors.speed ? 'bad' : ''}`} type="number" min={0.1} step={0.5}
+                  placeholder={String(defaultSpeedKmh(draft.kind)) + ' km/h'} value={draft.speedKmh}
+                  onChange={(e) => set('speedKmh', e.target.value)} />
+                {errors.speed && <div className="fieldError">{errors.speed}</div>}
+              </div>
+            </div>
+          )}
+          {errors.destination && <div className="fieldError">{errors.destination}</div>}
           <div className="block">
             <label>Objective</label>
             <textarea className={errors.objective ? 'bad' : ''} value={draft.objective}

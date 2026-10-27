@@ -77,6 +77,13 @@ export function createSampleScenario(): Scenario {
   };
 }
 
+/** Default travel speed in km/h by unit type. Zero means the unit cannot move on its own. */
+export function defaultSpeedKmh(kind: string): number {
+  if (kind === 'team' || kind === 'personnel') return 4;
+  if (kind === 'transport') return 40;
+  return 0;
+}
+
 /** Field-level errors for one node, keyed by field name. */
 export function nodeErrors(node: ExerciseNode): Record<string, string> {
   const errors: Record<string, string> = {};
@@ -100,6 +107,9 @@ export function nodeErrors(node: ExerciseNode): Record<string, string> {
   }
   if (node.speedKmh !== undefined && !(node.speedKmh > 0)) {
     errors.speed = 'Speed must be greater than 0 km/h.';
+  }
+  if (a && a.destinationId && !((node.speedKmh ?? defaultSpeedKmh(node.kind)) > 0)) {
+    errors.destination = 'This unit has no speed, so it cannot move. Set a speed or choose Stay in place.';
   }
   if (a.status !== undefined && !['Ready', 'Standby', 'Blocked'].includes(a.status)) {
     errors.status = 'Status must be Ready, Standby, or Blocked.';
