@@ -4,6 +4,7 @@ import { Inspector } from './components/Inspector';
 import { TopBar } from './components/TopBar';
 import { AssetLibrary } from './components/AssetLibrary';
 import { BottomBar } from './components/BottomBar';
+import { View3D } from './components/View3D';
 import { useSimulation } from './sim/useSimulation';
 import {
   NODE_SIZE,
@@ -31,6 +32,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<View>({ panX: 0, panY: 0, zoom: 1 });
   const [fitToken, setFitToken] = useState(0);
+  const [view3d, setView3d] = useState(false);
   const [notice, setNotice] = useState<{ title: string; issues: ValidationIssue[] } | null>(null);
 
   const issues = useMemo(() => validateScenario(scenario), [scenario]);
@@ -182,7 +184,11 @@ export default function App() {
         onResetView={resetView}
       />
 
-      <AssetLibrary onAdd={addNode} />
+      <AssetLibrary
+        onAdd={addNode}
+        selected={selected}
+        onOpen3D={() => setView3d(true)}
+      />
 
       <main className="mapPane">
         <MapCanvas
@@ -226,6 +232,18 @@ export default function App() {
           <div className="empty">Select a node on the map to edit its assignment.</div>
         )}
       </aside>
+
+      {view3d && selected && (
+        <div className="overlay3d">
+          <View3D
+            scenario={scenario}
+            unit={selected}
+            tasks={sim.snap?.tasks ?? []}
+            nowS={sim.snap?.now_s ?? 0}
+            onClose={() => setView3d(false)}
+          />
+        </div>
+      )}
 
       <BottomBar
         snap={sim.snap}

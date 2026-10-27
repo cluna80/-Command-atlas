@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import type { NodeKind } from '../model/types';
+import type { ExerciseNode, NodeKind } from '../model/types';
 import {
   ChevronIcon,
   CommsIcon,
@@ -54,14 +54,31 @@ const GROUPS: Group[] = [
   },
 ];
 
-export function AssetLibrary({ onAdd }: { onAdd: (kind: NodeKind) => void }) {
+export function AssetLibrary({
+  onAdd,
+  selected,
+  onOpen3D,
+}: {
+  onAdd: (kind: NodeKind) => void;
+  selected: ExerciseNode | null;
+  onOpen3D: () => void;
+}) {
   const [groups, setGroups] = useState(GROUPS);
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
 
   return (
     <aside className="library">
-      <div className="libTitle">Asset Library</div>
+      <div className="libTitle">Selected unit</div>
+      {selected ? (
+        <div className="selCard">
+          <div className="selName">{selected.name}</div>
+          <button className="selBtn" onClick={onOpen3D}>3D view</button>
+        </div>
+      ) : (
+        <div className="selEmpty">Click a unit on the map to open its 3D view.</div>
+      )}
+      <div className="libTitle" style={{ marginTop: 14 }}>Asset Library</div>
       <label className="search">
         <SearchIcon />
         <input
