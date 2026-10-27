@@ -1,0 +1,9 @@
+[package]
+name = "atlas-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+atlas-core = { path = "../atlas-core" }

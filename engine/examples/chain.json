@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "name": "Supply then evacuation (reference)",
+  "nodes": [
+    {"id": "supply", "kind": "supply", "name": "Supply", "assignment": {"start": "08:00", "durationMin": 30}},
+    {"id": "alpha", "kind": "team", "name": "Team Alpha", "assignment": {"start": "08:00", "durationMin": 60}},
+    {"id": "bravo", "kind": "team", "name": "Team Bravo", "assignment": {"start": "08:15", "durationMin": 45}}
+  ],
+  "dependencies": [{"id": "d1", "fromId": "supply", "toId": "alpha"}]
+}
