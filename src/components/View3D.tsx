@@ -40,6 +40,8 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
   const mountRef = useRef<HTMLDivElement>(null);
   const destLabelRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bumped to rebuild the 3D scene after the graphics context is lost.
+  const [sceneKey, setSceneKey] = useState(0);
   // Snapshots arrive about once a second. Between them, the clock is extrapolated from the
   // wall clock so motion is smooth while running.
   const snapAt = useRef({ at: performance.now(), now: nowS });
@@ -161,14 +163,23 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
     destGroup.visible = false;
     scene.add(destGroup);
 
-    // Route line for a moving unit.
+    // Route line for a moving unit: one geometry, updated only when the route changes.
     const routeMat = new THREE.LineDashedMaterial({ color: 0x7dd3fc, dashSize: W * 0.01, gapSize: W * 0.006 });
-    let routeLine: THREE.Line | null = null;
+    const routeGeo = new THREE.BufferGeometry();
+    const routeLine = new THREE.Line(routeGeo, routeMat);
+    routeLine.visible = false;
+    scene.add(routeLine);
+    let routeKey = '';
 
     let frame = 0;
+    // The browser drops the graphics context sometimes. Rebuild the scene so the view recovers.
     const onLost = (e: Event) => {
       e.preventDefault();
-      setError('The 3D graphics context was lost. Close and reopen the 3D view.');
+      setError('The 3D graphics context was lost. Rebuilding the view...');
+      setTimeout(() => {
+        setError(null);
+        setSceneKey((k) => k + 1);
+      }, 500);
     };
     renderer.domElement.addEventListener('webglcontextlost', onLost);
     const tick = () => {
@@ -207,16 +218,17 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
       (ring.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - ringPhase);
       ring.position.y = -W * 0.015 + 0.5;
 
-      if (routeLine) {
-        scene.remove(routeLine);
-        routeLine.geometry.dispose();
-        routeLine = null;
-      }
       if (t?.state === 'moving' && t.route && t.route.length > 1) {
-        const pts = t.route.map((q) => new THREE.Vector3(q.x, groundY(q.x, q.y) + W * 0.004, q.y));
-        routeLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), routeMat);
-        routeLine.computeLineDistances();
-        scene.add(routeLine);
+        const key = `${t.route.length}:${t.route[t.route.length - 1].t}:${t.route[0].x}`;
+        if (key !== routeKey) {
+          routeKey = key;
+          routeGeo.setFromPoints(t.route.map((q) => new THREE.Vector3(q.x, groundY(q.x, q.y) + W * 0.004, q.y)));
+          routeLine.computeLineDistances();
+        }
+        routeLine.visible = true;
+      } else {
+        routeLine.visible = false;
+        routeKey = '';
       }
 
       // Destination marker and label while moving.
@@ -260,10 +272,12 @@ export function View3D({ scenario, unit, tasks, nowS, running, speed, onClose }:
       controls.dispose();
       window.removeEventListener('resize', onResize);
       renderer.dispose();
+      routeGeo.dispose();
+      routeMat.dispose();
       geo.dispose();
       el.removeChild(renderer.domElement);
     };
-  }, [scenario, heights, W, H, hasElevation]);
+  }, [scenario, heights, W, H, hasElevation, sceneKey]);
 
   const t = tasks.find((x) => x.id === unit.id);
   return (
