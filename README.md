@@ -2,6 +2,8 @@
 
 Browser-based, top-down 2D exercise simulation for contractor training teams. Fictional scenarios only; training and exercise management. See the product roadmap baseline v0.1.
 
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the product roadmap baseline (v0.1) and phase exit criteria.
+
 ## Status: Phase 1 (scenario builder), in progress
 
 Implemented:
