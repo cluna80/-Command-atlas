@@ -241,3 +241,21 @@ button:disabled { cursor: default; opacity: 0.45; }
 .event.warn .ic { background: var(--red); }
 .event.info .card { border-color: var(--amber); }
 .event.info .ic { background: var(--amber); }
+
+.insSub { color: var(--muted); font-size: 12px; margin: -6px 0 10px 30px; }
+.profile { display: flex; flex-direction: column; gap: 14px; }
+.profile h3 { margin: 0 0 8px; }
+.person { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.personHead { display: flex; align-items: center; gap: 8px; }
+.personName { flex: 1; background: transparent; border: 0; border-bottom: 1px solid var(--line); outline: 0; font-weight: 600; padding: 2px 0; }
+.personGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.person input:not(.personName), .person select { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 5px 7px; font-size: 12px; width: 100%; }
+.addBtn { background: var(--panel-2); border: 1px dashed var(--line); border-radius: 6px; padding: 7px; color: var(--cyan); }
+.profile input:not(.personName), .profile textarea {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px;
+  width: 100%; outline: 0; font-size: 12px; color: var(--text);
+}
+.profile textarea { min-height: 50px; resize: vertical; }
+.profile .block { gap: 4px; }
+.person .linkBtn { font-size: 11px; flex: none; }
+.personName { min-width: 0; }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NODE_KINDS, type Dependency, type ExerciseNode, type Scenario, type Status } from '../model/types';
 import { defaultSpeedKmh, nodeErrors } from '../model/scenario';
 import { DocIcon } from './icons';
+import { UnitProfile } from './UnitProfile';
 
 type Tab = 'details' | 'personnel' | 'equipment';
 const ROLE_OPTIONS = ['Evacuation support', 'Supply run', 'Medical support', 'Observation'];
@@ -72,6 +73,7 @@ interface Props {
   node: ExerciseNode;
   scenario: Scenario;
   onApply: (node: ExerciseNode) => void;
+  onPatch: (patch: Partial<ExerciseNode>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onAddDependency: (fromId: string) => void;
@@ -79,7 +81,7 @@ interface Props {
 }
 
 /** Keyed by node id in the parent, so switching nodes resets the draft. */
-export function Inspector({ node, scenario, onApply, onDelete, onDuplicate, onAddDependency, onRemoveDependency }: Props) {
+export function Inspector({ node, scenario, onApply, onPatch, onDelete, onDuplicate, onAddDependency, onRemoveDependency }: Props) {
   const [tab, setTab] = useState<Tab>('details');
   const [draft, setDraft] = useState<Draft>(() => toDraft(node));
   const [showMore, setShowMore] = useState(false);
@@ -107,6 +109,10 @@ export function Inspector({ node, scenario, onApply, onDelete, onDuplicate, onAd
         <span className="liveDot" />
       </div>
 
+      {node.profile?.callsign && (
+        <div className="insSub">{node.profile.callsign}{node.profile.commander ? ` \u00B7 ${node.profile.commander}` : ''}</div>
+      )}
+
       <div className="tabs">
         {(['details', 'personnel', 'equipment'] as Tab[]).map((t) => (
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
@@ -115,11 +121,9 @@ export function Inspector({ node, scenario, onApply, onDelete, onDuplicate, onAd
         ))}
       </div>
 
-      {tab !== 'details' ? (
-        <div className="comingSoon">
-          {tab === 'personnel' ? 'Personnel roster' : 'Equipment list'} is not built yet. Details are in the Details tab.
-        </div>
-      ) : (
+      {tab === 'personnel' && <UnitProfile node={node} onPatch={onPatch} />}
+      {tab === 'equipment' && <div className="comingSoon">Equipment list is not built yet.</div>}
+      {tab === 'details' && (
         <div className="form">
           <div className="row">
             <label>Assignment</label>

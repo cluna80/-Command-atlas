@@ -27,6 +27,24 @@ export interface Assignment {
   fallback: string;
 }
 
+export type Availability = 'available' | 'limited' | 'unavailable';
+
+/** One person in a unit. Training data only: roles and callsigns, not real people. */
+export interface Person {
+  id: string;
+  name: string;
+  role: string;
+  qualifications: string[];
+  availability: Availability;
+}
+
+export interface UnitProfile {
+  callsign: string;
+  commander: string;
+  radioChannel: string;
+  notes: string;
+}
+
 export interface ExerciseNode {
   id: string;
   kind: NodeKind;
@@ -36,6 +54,8 @@ export interface ExerciseNode {
   personnel: number;
   assignment: Assignment;
   speedKmh?: number; // travel speed; the engine uses a default for the unit type when absent
+  profile?: UnitProfile;
+  roster?: Person[];
 }
 
 // fromId must finish before toId can start.

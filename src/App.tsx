@@ -216,6 +216,7 @@ export default function App() {
             node={selected}
             scenario={scenario}
             onApply={applyNode}
+            onPatch={(patch) => updateNode(selected.id, patch)}
             onDelete={() => deleteNode(selected.id)}
             onDuplicate={() => duplicateNode(selected.id)}
             onAddDependency={(fromId) => addDependency(fromId, selected.id)}

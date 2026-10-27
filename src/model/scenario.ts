@@ -57,12 +57,23 @@ export function createSampleScenario(): Scenario {
     terrain: { seed: 42 },
     nodes: [
       {
-        id: 'alpha', kind: 'team', name: 'Team Alpha', x: 520, y: 520, personnel: 12,
+        id: 'alpha', kind: 'team', name: 'Team Alpha', x: 520, y: 520, personnel: 3,
         assignment: assign('Assist evacuation.', 'Evacuation support', '09:00'),
+        profile: { callsign: 'ALPHA', commander: 'Team lead (training role)', radioChannel: 'CH-2', notes: 'Evacuation support tasking.' },
+        roster: [
+          { id: 'alpha-1', name: 'A1 · Team lead', role: 'Team lead', qualifications: ['Radio operator', 'First aid'], availability: 'available' },
+          { id: 'alpha-2', name: 'A2 · Driver', role: 'Driver', qualifications: ['Light vehicle'], availability: 'available' },
+          { id: 'alpha-3', name: 'A3 · Medic', role: 'Medic', qualifications: ['First aid', 'Casualty handling'], availability: 'limited' },
+        ],
       },
       {
-        id: 'bravo', kind: 'team', name: 'Team Bravo', x: 1280, y: 860, personnel: 8,
+        id: 'bravo', kind: 'team', name: 'Team Bravo', x: 1280, y: 860, personnel: 2,
         assignment: assign('Resupply Medical.', 'Supply run', '09:30'),
+        profile: { callsign: 'BRAVO', commander: 'Team lead (training role)', radioChannel: 'CH-3', notes: 'Supply run tasking.' },
+        roster: [
+          { id: 'bravo-1', name: 'B1 · Team lead', role: 'Team lead', qualifications: ['Radio operator'], availability: 'available' },
+          { id: 'bravo-2', name: 'B2 · Loader', role: 'Loader', qualifications: ['Materials handling'], availability: 'available' },
+        ],
       },
       {
         id: 'medical', kind: 'medical', name: 'Medical', x: 1300, y: 380, personnel: 4,
@@ -104,6 +115,9 @@ export function nodeErrors(node: ExerciseNode): Record<string, string> {
   if (!TIME_RE.test(a.start ?? '')) errors.start = 'Start must be a 24-hour time such as 09:00.';
   if (a.durationMin !== undefined && (!Number.isInteger(a.durationMin) || a.durationMin < 1 || a.durationMin > 1440)) {
     errors.duration = 'Duration must be a whole number of minutes from 1 to 1440.';
+  }
+  if (node.roster && node.roster.some((p) => !p.name?.trim())) {
+    errors.roster = 'Every person in the roster needs a name.';
   }
   if (node.speedKmh !== undefined && !(node.speedKmh > 0)) {
     errors.speed = 'Speed must be greater than 0 km/h.';
